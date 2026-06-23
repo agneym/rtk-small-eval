@@ -1,0 +1,42 @@
+diff --git a/astropy/wcs/wcs.py b/astropy/wcs/wcs.py
+index d3a06f2b31..bd489ebb89 100644
+--- a/astropy/wcs/wcs.py
++++ b/astropy/wcs/wcs.py
+@@ -1220,6 +1220,20 @@ reduce these to 2 dimensions using the naxis kwarg.
+ 
+             xy = np.hstack([x.reshape((x.size, 1)) for x in axes])
+ 
++            if xy.size == 0:
++                # Return empty arrays matching the input shape
++                # Make a dummy call to determine output shape
++                dummy_xy = np.zeros((1, xy.shape[1]), dtype=xy.dtype)
++                if ra_dec_order and sky == 'input':
++                    dummy_xy = self._denormalize_sky(dummy_xy)
++                dummy_output = func(dummy_xy, origin)
++                if ra_dec_order and sky == 'output':
++                    dummy_output = self._normalize_sky(dummy_output)
++                    return (np.array([]).reshape(axes[0].shape),
++                            np.array([]).reshape(axes[0].shape))
++                return [np.array([]).reshape(axes[0].shape)
++                        for i in range(dummy_output.shape[1])]
++
+             if ra_dec_order and sky == 'input':
+                 xy = self._denormalize_sky(xy)
+             output = func(xy, origin)
+@@ -1235,6 +1249,16 @@ reduce these to 2 dimensions using the naxis kwarg.
+                 raise ValueError(
+                     "When providing two arguments, the array must be "
+                     "of shape (N, {0})".format(self.naxis))
++            if xy.shape[0] == 0:
++                # Return empty array matching the output shape
++                # Make a dummy call to determine output shape
++                dummy_xy = np.zeros((1, xy.shape[1]), dtype=xy.dtype)
++                if ra_dec_order and sky == 'input':
++                    dummy_xy = self._denormalize_sky(dummy_xy)
++                dummy_result = func(dummy_xy, origin)
++                if ra_dec_order and sky == 'output':
++                    dummy_result = self._normalize_sky(dummy_result)
++                return dummy_result[:0]
+             if ra_dec_order and sky == 'input':
+                 xy = self._denormalize_sky(xy)
+             result = func(xy, origin)
