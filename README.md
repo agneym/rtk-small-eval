@@ -19,6 +19,22 @@ Read these first:
 - `logs/run_evaluation_summary_20260623.md` — full comparison including unresolved pairs.
 - `logs/rtk_token_overuse_diagnosis_20260623.md` — diagnosis of why RTK consumed more tokens.
 
+```mermaid
+xyChart-beta
+    title "Total tokens spent"
+    x-axis ["rtk-off", "rtk-on"]
+    y-axis "tokens" 0 --> 6500000
+    bar [3457042, 6030991]
+```
+
+```mermaid
+xyChart-beta
+    title "Total tool/API calls"
+    x-axis ["rtk-off", "rtk-on"]
+    y-axis "calls" 0 --> 450
+    bar [298, 418]
+```
+
 Important interpretation: this is not caused by merely installing RTK. It is caused by putting RTK in the command path via our transparent `rtk rewrite` harness, which is similar to RTK's auto-rewrite hook behavior. Test-runner rewrites should be treated carefully or excluded.
 
 ## Repo contents
