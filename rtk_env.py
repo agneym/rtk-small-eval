@@ -33,6 +33,7 @@ identically for the Docker and Local arms.
 from __future__ import annotations
 
 import csv
+import logging
 import shutil
 import subprocess
 import uuid
@@ -242,6 +243,11 @@ class RtkLocalEnvironmentConfig(LocalEnvironmentConfig):
 
 class RtkLocalEnvironment(RtkMixin, LocalEnvironment):
     def __init__(self, *, config_class: type = RtkLocalEnvironmentConfig, **kw):
+        # LocalEnvironment.__init__ does not set self.logger, but RtkMixin's
+        # error path calls self.logger.warning. Attach a module logger here so
+        # the mixin's `self.logger` works on both subclasses (DockerEnvironment
+        # already sets its own in its __init__, which runs via super()).
+        self.logger = logging.getLogger("minisweagent.environment.rtk_local")
         super().__init__(config_class=config_class, **kw)
 
     def execute(self, action: dict, cwd: str = "", *, timeout: int | None = None) -> dict[str, Any]:

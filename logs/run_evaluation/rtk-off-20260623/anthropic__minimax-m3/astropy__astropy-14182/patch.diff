@@ -1,0 +1,31 @@
+diff --git a/astropy/io/ascii/rst.py b/astropy/io/ascii/rst.py
+index abdeba8ef..326c59b1e 100644
+--- a/astropy/io/ascii/rst.py
++++ b/astropy/io/ascii/rst.py
+@@ -57,10 +57,22 @@ class RST(FixedWidth):
+     data_class = SimpleRSTData
+     header_class = SimpleRSTHeader
+ 
+-    def __init__(self):
+-        super().__init__(delimiter_pad=None, bookend=False)
++    def __init__(self, header_rows=None):
++        super().__init__(delimiter_pad=None, bookend=False, header_rows=header_rows)
+ 
+     def write(self, lines):
+-        lines = super().write(lines)
+-        lines = [lines[1]] + lines + [lines[1]]
++        # Save the original position_line (used for reading) and temporarily
++        # set it to a position appropriate for writing (right after the
++        # header rows).
++        idx = len(self.header.header_rows)
++        original_position_line = self.header.position_line
++        self.header.position_line = idx
++        try:
++            lines = super().write(lines)
++        finally:
++            self.header.position_line = original_position_line
++        # The position line was generated right after the header rows.
++        # Prepend and append it to create the top and bottom borders of
++        # the RST table.
++        lines = [lines[idx]] + lines + [lines[idx]]
+         return lines
