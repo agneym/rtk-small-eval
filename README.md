@@ -2,23 +2,29 @@
 
 This repo measures mini-swe-agent SWE-bench Lite runs with and without RTK command rewriting.
 
-## What we learned
+## Fair evaluation (current)
 
-Across 23 paired instances from five slices of SWE-bench Lite, RTK-on consistently used **more** tokens, not fewer:
+The initial evaluation (June 2026) hid RTK from the model — commands were silently rewritten with no awareness in the system prompt, no visibility of which commands got rewritten, and no escape hatch. This created a worst-case scenario that no real `rtk init -g` user would experience.
 
-- 17 paired instances resolved in both arms. 5 unresolved in both arms. 1 resolved rtk-off only — first resolution regression.
-- RTK-off: **15,696,536** total tokens, **813** calls. Resolved: **18/23**.
-- RTK-on: **20,989,751** total tokens, **1,001** calls. Resolved: **17/23**.
-- Delta: **+5,293,215 tokens (+33.7%)** and **+188 calls (+23.1%)**.
-- Resolved-only: **11,634,956 → 15,876,357 tokens (+36.5%)**, **580 → 747 calls (+28.8%)**.
+The fair evaluation mimics the real auto-rewrite hook:
 
-The main lesson is that RTK's per-command output savings can be overwhelmed if rewriting changes behavior enough to create extra agent turns. The biggest outlier was `astropy__astropy-14995`: RTK-on spent **+1.94M tokens** and **+70 calls**, mostly because pytest commands were rewritten to `rtk pytest ...`, which produced repeated `Pytest: No tests collected` observations and sent the agent into a debugging loop.
+- **Awareness**: The system prompt tells the model that RTK auto-rewrites commands (equivalent to the `RTK.md` file injected by `rtk init -g`).
+- **Escape hatch**: `RTK_DISABLED=1 <cmd>` bypasses RTK for a single command — mirrors the real hook's env-var contract.
+- **No preemptive exclusions**: No commands are excluded from rewrite. Whether the model reaches for `RTK_DISABLED=1` when output looks wrong is the key measurement. An optional `exclude_commands` config is available for preemptively-shielded comparison runs.
 
-Read these first:
+## Previous evaluation (June 2026 — UNFAIR)
 
-- `logs/run_evaluation_summary_resolved_only_20260624.md` — headline resolved-only token/call comparison.
-- `logs/run_evaluation_summary_20260624.md` — full comparison including unresolved pairs.
-- `logs/rtk_token_overuse_diagnosis_20260623.md` — diagnosis of why RTK consumed more tokens.
+The original eval ran 23 paired instances across 5 slices with silent rewriting. Results are preserved for reference but are not representative of real-world RTK usage:
+
+| metric | rtk-off | rtk-on | delta |
+|---|---:|---:|---:|
+| Resolved | 18/23 | 17/23 | −1 |
+| Total tokens | 15,696,536 | 20,989,751 | +33.7% |
+| Total calls | 813 | 1,001 | +23.1% |
+
+The main failure mode: pytest commands rewritten to `rtk pytest ...` produced repeated "No tests collected", and the model — unaware RTK was the cause — spent dozens of turns debugging the harness. See `logs/rtk_token_overuse_diagnosis_20260623.md`.
+
+**Verdict on old eval**: invalid. The setup is not comparable to any real RTK integration.
 
 ```mermaid
 xychart-beta
@@ -70,11 +76,11 @@ This should create:
 vendor/rtk-x86_64-unknown-linux-musl
 ```
 
-## Run an A/B pair
+## Run an A/B pair (fair evaluation)
 
 Run from the repo root so `rtk_env.py` is importable and the relative `vendor/` RTK binary path resolves correctly.
 
-### RTK off
+### RTK off (control arm — unchanged)
 
 ```bash
 python -m minisweagent.run.benchmarks.swebench \
@@ -82,11 +88,12 @@ python -m minisweagent.run.benchmarks.swebench \
   --model anthropic/claude-sonnet-4-5-20250929 \
   --environment-class docker \
   -c swebench.yaml \
+  -c agent.step_limit=100 \
   -c model.cost_tracking=ignore_errors \
-  -o runs/example/rtk-off
+  -o runs/rtk-off
 ```
 
-### RTK on
+### RTK on (fair arm — with awareness + bypass)
 
 ```bash
 python -m minisweagent.run.benchmarks.swebench \
@@ -94,10 +101,17 @@ python -m minisweagent.run.benchmarks.swebench \
   --model anthropic/claude-sonnet-4-5-20250929 \
   --environment-class rtk_env.RtkDockerEnvironment \
   -c swebench.yaml \
+  -c swebench_rtk.yaml \
   -c model.cost_tracking=ignore_errors \
-  -c environment.rtk_rewrite_log_path=runs/example/rtk-on/rtk_rewrite.log \
-  -o runs/example/rtk-on
+  -c environment.rtk_rewrite_log_path=runs/rtk-on/rtk_rewrite.log \
+  -o runs/rtk-on
 ```
+
+Key differences from the old (unfair) run:
+
+- `swebench_rtk.yaml` is loaded AFTER `swebench.yaml` — it overrides `system_template` (RTK awareness) and `step_limit` (100 vs 250). `swebench.yaml` provides `instance_template`, `observation_template`, etc.
+- The model is told about RTK's behavior, the pytest caveat, and `RTK_DISABLED=1` — but no commands are excluded. Whether the model reaches for the bypass is part of what we're measuring.
+- Optionally add `-c environment.exclude_commands='["pytest"]'` to compare against a preemptively-shielded variant.
 
 Swap `--model` as needed, for example `deepseek/deepseek-v4-flash` if your LiteLLM config supports it.
 
@@ -135,11 +149,13 @@ python -m swebench.harness.run_evaluation \
 
 ## Important caveat
 
-Current RTK rewrite rules rewrite pytest commands, e.g. `python -m pytest ...` to `rtk pytest ...`. In our logs this caused some RTK-on runs, especially `astropy__astropy-14995`, to spend many extra turns debugging `Pytest: No tests collected`.
+The old evaluation found that RTK's pytest rewriting caused serious problems (`Pytest: No tests collected` loops). In the fair evaluation:
 
-See:
+- The model is warned about this in the system prompt and given `RTK_DISABLED=1` as a bypass.
+- No commands are excluded by default — whether the model self-diagnoses and escapes is part of what we're measuring.
+- A real user who encountered this would likely add `exclude_commands = ["pytest"]` to their config.toml. A follow-up run with exclusions pre-configured would measure the ceiling if the model doesn't self-rescue.
 
-- `logs/rtk_token_overuse_diagnosis_20260623.md`
-- `logs/run_evaluation_summary_resolved_only_20260624.md`
+## Further reading
 
-For more implementation detail, read `docs/using-rtk-with-harness.md`.
+- `docs/using-rtk-with-harness.md` — implementation detail on how the harness integrates with mini-swe-agent.
+- `logs/rtk_token_overuse_diagnosis_20260623.md` — diagnosis of old unfair eval's failure modes.

@@ -72,12 +72,37 @@ class RtkMixin:
 
         Returns (effective_command, rtk_exit_code, rewritten_or_empty).
         - exit 3 + non-empty stdout → rewritten command, run that.
+        - exit -2 → RTK_DISABLED=1 bypass (run original, stripped).
+        - exit -3 → exclude_commands bypass (run original).
         - anything else             → passthrough, run the original.
         Defensive: exit 0 with empty stdout is also passthrough (doc §1;
         `--help` claiming exit 0 is stale).
         """
         if not command.strip():
             return command, -1, ""
+
+        # --- Escape hatches (match the real rtk auto-rewrite hook) ---
+
+        # 1. RTK_DISABLED=1 prefix: strip and passthrough (per-command bypass).
+        #    Mirrors the real hook's RTK_DISABLED=1 env-var contract.
+        stripped = command
+        while stripped.startswith("RTK_DISABLED=1 "):
+            stripped = stripped[len("RTK_DISABLED=1 "):]
+        if stripped is not command:
+            self.logger.info(f"rtk bypass: RTK_DISABLED=1 → running raw: {stripped[:120]}")
+            return stripped, -2, ""
+
+        # 2. exclude_commands patterns: skip rewrite for commands whose first
+        #    word (after env-prefix stripping) matches a configured exclusion.
+        #    Mirrors the real hook's [hooks] exclude_commands in config.toml.
+        command = stripped  # reuse the already-stripped version
+        if self.config.exclude_commands:
+            first_word = command.split()[0] if command.split() else ""
+            for pattern in self.config.exclude_commands:
+                if first_word == pattern or command.startswith(pattern + " ") or command == pattern:
+                    self.logger.info(f"rtk bypass: exclude_commands {pattern!r} → passthrough")
+                    return command, -3, ""
+
         try:
             r = subprocess.run(
                 [self.config.rtk_path, "rewrite", command],
@@ -164,6 +189,12 @@ class RtkDockerEnvironmentConfig(DockerEnvironmentConfig):
     """Where to append one CSV line per rewrite decision. Empty disables
     logging. Default is set at launch time (e.g. runs/rtk-on/rtk_rewrite.log)."""
 
+    exclude_commands: list[str] = []
+    """Command patterns to never rewrite. Matches against the first word
+    of the command or the full command prefix. E.g. ``["pytest", "python"]``
+    skips ``pytest ...``, ``python -m pytest ...``, ``python3 ...``.
+    Mirrors the real hook's ``[hooks] exclude_commands`` in config.toml."""
+
 
 class RtkDockerEnvironment(RtkMixin, DockerEnvironment):
     def __init__(self, *, config_class: type = RtkDockerEnvironmentConfig, **kw):
@@ -239,6 +270,10 @@ class RtkLocalEnvironmentConfig(LocalEnvironmentConfig):
 
     rtk_rewrite_log_path: str = ""
     """Where to append one CSV line per rewrite decision. Empty disables."""
+
+    exclude_commands: list[str] = []
+    """Command patterns to never rewrite. See RtkDockerEnvironmentConfig
+    for matching semantics."""
 
 
 class RtkLocalEnvironment(RtkMixin, LocalEnvironment):

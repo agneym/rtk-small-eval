@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RTK Evaluation Findings — SWE-bench Lite A/B (23 paired instances)</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --card: #161b22;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --dim: #8b949e;
+    --green: #3fb950;
+    --red: #f85149;
+    --orange: #d2991d;
+    --blue: #58a6ff;
+    --purple: #bc8cff;
+    --pink: #db61a2;
+  }
+  * { box-sizing:border-box; margin:0; padding:0 }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    line-height:1.6; max-width:1100px; margin:0 auto; padding:2rem 1.5rem;
+  }
+  h1 { font-size:1.8rem; margin-bottom:0.25rem }
+  h2 { font-size:1.3rem; margin:2rem 0 0.75rem; padding-bottom:0.4rem; border-bottom:1px solid var(--border) }
+  h3 { font-size:1.05rem; margin:1.2rem 0 0.5rem; color: var(--blue) }
+  p, li { margin-bottom:0.5rem }
+  a { color: var(--blue); text-decoration:none }
+  a:hover { text-decoration:underline }
+  .subtitle { color: var(--dim); font-size:0.95rem; margin-bottom:1.5rem }
+  .card {
+    background: var(--card); border:1px solid var(--border);
+    border-radius:8px; padding:1.25rem; margin-bottom:1.25rem;
+  }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:1.25rem }
+  .grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:1.25rem }
+  @media (max-width:700px) { .grid2,.grid3 { grid-template-columns:1fr } }
+  .metric { text-align:center }
+  .metric .val { font-size:2rem; font-weight:700; font-variant-numeric:tabular-nums }
+  .metric .label { color: var(--dim); font-size:0.8rem; text-transform:uppercase; letter-spacing:0.05em }
+  .metric .delta { font-size:0.9rem; margin-top:0.15rem }
+  .badge { display:inline-block; padding:0.15em 0.55em; border-radius:4px; font-size:0.8rem; font-weight:600 }
+  .badge-up { background:rgba(248,81,73,.15); color:var(--red) }
+  .badge-down { background:rgba(63,185,80,.15); color:var(--green) }
+  .badge-warn { background:rgba(210,153,29,.15); color:var(--orange) }
+  .badge-info { background:rgba(88,166,255,.15); color:var(--blue) }
+  table { width:100%; border-collapse:collapse; font-size:0.85rem }
+  th { text-align:right; color:var(--dim); font-weight:600; padding:0.4rem 0.6rem; border-bottom:1px solid var(--border); white-space:nowrap }
+  th:first-child { text-align:left }
+  td { padding:0.35rem 0.6rem; border-bottom:1px solid rgba(48,54,61,.5); font-variant-numeric:tabular-nums }
+  td:first-child { text-align:left; font-family:"SF Mono",Menlo,monospace; font-size:0.8rem }
+  tbody tr:hover { background:rgba(88,166,255,.06) }
+  .resolved { color:var(--green); font-weight:600 }
+  .unresolved { color:var(--red) }
+  .num { text-align:right; font-variant-numeric:tabular-nums }
+  .callout {
+    border-left:3px solid var(--blue); padding-left:1rem;
+    margin:1rem 0; color: var(--dim); font-size:0.9rem;
+  }
+  .callout.warn { border-left-color:var(--orange) }
+  .callout.danger { border-left-color:var(--red) }
+  .callout strong { color:var(--text) }
+  svg.chart { display:block; width:100%; margin:0.25rem 0 }
+  .section-toc { list-style:none; display:flex; flex-wrap:wrap; gap:0.5rem 1.5rem; margin-bottom:1.5rem }
+  .section-toc a { font-size:0.9rem }
+  .highlight-box {
+    background:rgba(248,81,73,.08); border:1px solid rgba(248,81,73,.25);
+    border-radius:8px; padding:1rem 1.25rem; margin:1rem 0;
+  }
+  .highlight-box.good {
+    background:rgba(63,185,80,.08); border-color:rgba(63,185,80,.25);
+  }
+  .fraction { font-size:0.95rem }
+  ol { padding-left:1.5rem }
+  ol li { margin-bottom:0.6rem }
+  .tag { font-size:0.7rem; font-weight:600; text-transform:uppercase; letter-spacing:0.05em;
+         display:inline-block; padding:0.15em 0.5em; border-radius:3px; margin-right:0.3rem }
+  .tag-m3 { background:rgba(219,97,162,.15); color:var(--pink) }
+  .tag-dsv4 { background:rgba(88,166,255,.15); color:var(--blue) }
+</style>
+</head>
+<body>
+
+<h1>RTK Evaluation: What We Learned</h1>
+<p class="subtitle">23 paired SWE-bench Lite instances · 5 slices · 2 models · Generated June 2026</p>
+
+<ul class="section-toc">
+  <li><a href="#headline">Headline</a></li>
+  <li><a href="#per-instance">Per-instance breakdown</a></li>
+  <li><a href="#by-slice">By slice</a></li>
+  <li><a href="#savings">Where RTK saved tokens</a></li>
+  <li><a href="#outlier">The outlier: astropy-14995</a></li>
+  <li><a href="#diagnosis">Root cause diagnosis</a></li>
+  <li><a href="#recommendations">Recommendations</a></li>
+  <li><a href="#caveats">Caveats &amp; methodology</a></li>
+</ul>
+
+<!-- ================================================================ -->
+<h2 id="headline">Headline</h2>
+
+<div class="card">
+<div class="grid3">
+  <div class="metric">
+    <div class="label">RTK-off resolved</div>
+    <div class="val">18 / 23</div>
+    <div class="fraction">78.3%</div>
+  </div>
+  <div class="metric">
+    <div class="label">RTK-on resolved</div>
+    <div class="val">17 / 23</div>
+    <div class="fraction">73.9%</div>
+  </div>
+  <div class="metric">
+    <div class="label">Resolution delta</div>
+    <div class="val" style="color:var(--red)">−1</div>
+    <div class="delta">django__django-11630</div>
+  </div>
+</div>
+</div>
+
+<div class="card">
+<div class="grid2">
+  <div>
+    <svg class="chart" viewBox="0 0 400 180" role="img" aria-label="Total tokens: RTK-off 15.7M vs RTK-on 21.0M">
+      <text x="200" y="20" text-anchor="middle" fill="#8b949e" font-size="11">Total tokens spent — all 23 pairs</text>
+      <rect x="60" y="35" width="120" height="100" fill="rgba(63,185,80,.5)" rx="4"/>
+      <text x="120" y="62" text-anchor="middle" fill="white" font-size="12" font-weight="600">rtk-off</text>
+      <text x="120" y="78" text-anchor="middle" fill="white" font-size="13" font-weight="700">15.7M</text>
+      <rect x="220" y="35" width="120" height="126" fill="rgba(248,81,73,.5)" rx="4"/>
+      <text x="280" y="62" text-anchor="middle" fill="white" font-size="12" font-weight="600">rtk-on</text>
+      <text x="280" y="78" text-anchor="middle" fill="white" font-size="13" font-weight="700">21.0M</text>
+      <text x="280" y="95" text-anchor="middle" fill="rgba(255,255,255,.7)" font-size="10">+33.7%</text>
+      <line x1="50" y1="162" x2="350" y2="162" stroke="#30363d"/>
+      <text x="50" y="176" fill="#8b949e" font-size="9">0</text>
+      <text x="350" y="176" text-anchor="end" fill="#8b949e" font-size="9">22M</text>
+    </svg>
+  </div>
+  <div>
+    <svg class="chart" viewBox="0 0 400 180" role="img" aria-label="Total calls: RTK-off 813 vs RTK-on 1,001">
+      <text x="200" y="20" text-anchor="middle" fill="#8b949e" font-size="11">Total tool/API calls — all 23 pairs</text>
+      <rect x="60" y="35" width="120" height="100" fill="rgba(63,185,80,.5)" rx="4"/>
+      <text x="120" y="62" text-anchor="middle" fill="white" font-size="12" font-weight="600">rtk-off</text>
+      <text x="120" y="78" text-anchor="middle" fill="white" font-size="13" font-weight="700">813</text>
+      <rect x="220" y="35" width="120" height="115" fill="rgba(248,81,73,.5)" rx="4"/>
+      <text x="280" y="62" text-anchor="middle" fill="white" font-size="12" font-weight="600">rtk-on</text>
+      <text x="280" y="78" text-anchor="middle" fill="white" font-size="13" font-weight="700">1,001</text>
+      <text x="280" y="95" text-anchor="middle" fill="rgba(255,255,255,.7)" font-size="10">+23.1%</text>
+      <line x1="50" y1="162" x2="350" y2="162" stroke="#30363d"/>
+      <text x="50" y="176" fill="#8b949e" font-size="9">0</text>
+      <text x="350" y="176" text-anchor="end" fill="#8b949e" font-size="9">1100</text>
+    </svg>
+  </div>
+</div>
+</div>
+
+<div class="card">
+<div class="grid2">
+  <div class="metric">
+    <div class="label">Token direction</div>
+    <div class="val" style="font-size:1.5rem"><span style="color:var(--red)">18 ↑</span> / <span style="color:var(--green)">5 ↓</span></div>
+    <div class="delta">RTK-on used more tokens on 18 of 23 pairs</div>
+  </div>
+  <div class="metric">
+    <div class="label">Median token increase</div>
+    <div class="val" style="font-size:1.5rem;color:var(--red)">+95.8%</div>
+    <div class="delta">311k → 609k per instance</div>
+  </div>
+</div>
+</div>
+
+<div class="callout danger">
+  <strong>Bottom line:</strong> RTK-on increased token spend by <strong>+33.7%</strong> and tool/API calls by <strong>+23.1%</strong>
+  while reducing resolution from 18/23 to 17/23. The hypothesis that RTK saves tokens by compacting command output
+  is incorrect for this workload — the extra turns RTK introduced overwhelmed any per-command savings.
+</div>
+
+<!-- ================================================================ -->
+<h2 id="per-instance">Per-instance breakdown</h2>
+
+<div class="card" style="overflow-x:auto">
+<table>
+<thead>
+<tr>
+  <th>Instance</th>
+  <th>Model</th>
+  <th>Resolved</th>
+  <th style="color:var(--green)">Off tokens</th>
+  <th style="color:var(--red)">On tokens</th>
+  <th>Δ tokens</th>
+  <th>Δ%</th>
+  <th>Off calls</th>
+  <th>On calls</th>
+  <th>Δ calls</th>
+</tr>
+</thead>
+<tbody>
+
+<tr>
+  <td>astropy__astropy-12907</td>
+  <td><span class="tag tag-m3">M3</span></td>
+  <td class="resolved">→</td>
+  <td class="num">163,378</td>
+  <td class="num">157,076</td>
+  <td class="num"><span style="color:var(--green)">−6,302</span></td>
+  <td class="num"><span style="color:var(--green)">−3.9%</span></td>
+  <td class="num">19</td>
+  <td class="num">20</td>
+  <td class="num">+1</td>
+</tr>
+<tr>
+  <td>astropy__astropy-14182</td>
+  <td><span class="tag tag-m3">M3</span></td>
+  <td class="unresolved">✗ ✗</td>
+  <td class="num">2,040,992</td>
+  <td class="num">609,360</td>
+  <td class="num"><span style="color:var(--green)">−1,431,632</span></td>
+  <td class="num"><span style="color:var(--green)">−70.1%</span></td>
+  <td class="num">82</td>
+  <td class="num">43</td>
+  <td class="num"><span style="color:var(--green)">−39</span></td>
+</tr>
+<tr style="background:rgba(248,81,73,.06)">
+  <td>astropy__astropy-14995</td>
+  <td><span class="tag tag-m3">M3</span></td>
+  <td class="resolved">→</td>
+  <td class="num">623,671</td>
+  <td class="num">2,567,739</td>
+  <td class="num"><span style="color:var(--red);font-weight:700">+1,944,068</span></td>
+  <td class="num"><span style="color:var(--red);font-weight:700">+311.7%</span></td>
+  <td class="num">40</td>
+  <td class="num">110</td>
+  <td class="num"><span style="color:var(--red)">+70</span></td>
+</tr>
+<tr>
+  <td>astropy__astropy-6938</td>
+  <td><span class="tag tag-m3">M3</span></td>
+  <td class="resolved">→</td>
+  <td class="num">596,072</td>
+  <td class="num">683,190</td>
+  <td class="num"><span style="color:var(--red)">+87,118</span></td>
+  <td class="num"><span style="color:var(--red)">+14.6%</span></td>
+  <td class="num">51</td>
+  <td class="num">59</td>
+  <td class="num">+8</td>
+</tr>
+<tr>
+  <td>astropy__astropy-7746</td>
+  <td><span class="tag tag-dsv4">DS V4</span></td>
+  <td class="unresolved">✗ ✗</td>
+  <td class="num">185,426</td>
+  <td class="num">1,237,088</td>
+  <td class="num"><span style="color:var(--red)">+1,051,662</span></td>
+  <td class="num"><span style="color:var(--red)">+567.2%</span></td>
+  <td class="num">20</td>
+  <td class="num">56</td>
+  <td class="num">+36</td>
+</tr>
+<tr>
+  <td>django__django-10914</td>
+  <td><span class="tag tag-dsv4">DS V4</span></td>
+  <td class="resolved">→</td>
+  <td class="num">251,603</td>
+  <td class="num">404,225</td>
+  <td class="num"><span style="color:var(--red)">+152,622</span></td>
+  <td class="num"><span style="color:var(--red)">+60.7%</span></td>
+  <td class="num">23</td>
+  <td class="num">30</td>
+  <td class="num">+7</td>
+</tr>
+<tr>
+  <td>django__django-10924</td>
+  <td><span class="tag tag-dsv4">DS V4</span></td>
+  <td class="resolved">→</td>
+  <td class="num">986,158</td>
+  <td class="num">792,366</td>
+  <td class="num"><span style="color:var(--green)">−193,792</span></td>
+  <td class="num"><span style="color:var(--green)">−19.7%</span></td>
+  <td class="num">48</td>
+  <td class="num">46</td>
+  <td class="num">−2</td>
+</tr>
+<tr>
+  <td>django__django-11001</td>
+  <td><span class="tag tag-dsv4">DS V4</span></td>
+  <td class="resolved">→</td>
+  <td class="num">325,518</td>
+  <td class="num">560,365</td>
+  <td class="num"><span style="color:var(--red)">+234,847</span></td>
+  <td class="num"><span style="color:var(--red)">+72.1%</span></td>
+  <td class="num">32</td>
+  <td class="num">45</td>
+  <td class="num">+13</td>
+</tr>
+<tr>
+  <td>django__django-11039</td>
+  <td><span class="tag tag-dsv4">DS V4</span></td>
+  <td class="resolved">→</td>
+  <td class="num">95,013</td>
+  <td class="num">212,805</td>
+  <td class="num"><span style="color:var(--red)">+117,792</span></td>
+  <td class="num"><span style="color:var(--red)">+124.0%</span></td>
+  <td class="num">17</td>
+  <td class="num">24</td>
+  <td class="num">+7</td>
+</tr>
+<tr>
+  <td>django__django-11049</td>
+  <td><span class="tag tag-dsv4">DS V4</span></td>
+  <td class="resolved">→</td>
+  <td class="num">113,053</td>
+  <td class="num">210,482</td>
+  <td class="num"><span style="color:var(--red)">+97,429</span></td>
+  <td class="num"><span style="color:var(--red)">+86.2%</span></td>
+  <td class="num">19</td>
+  <td class="num">25</td>
+  <td class="num">+6</td>
+</tr>
+<tr>
+  <td>django__django-11099</td>
+  <td><span class="tag tag-dsv4">DS V4</span></td>
+  <td class="resolved">→</td>
+  <td class="num">52,555</td>
+  <td class="num">43,913</td>
+  <td class="num"><span style="color:var(--green)">−8,642</span></td>
+  <td class="num"><span style="color:var(--green)">−16.4%</span></td>
+  <td class="num">13</td>
+  <td class="num">12</td>
+  <td class="num">−1</td>
+</tr>
+<tr>
+  <td>django__django-11133</td>
+  <td><span class="tag tag-dsv4">DS V4</span></td>
+  <td class="resolved">→</td>
+  <td class="num">116,593</td>
+  <td class="num">243,380</td>
+  <td class="num"><span style="color:var(--red)">+126,787</span></td>
+  <td class="num"><span style="color:var(--red)">+108.7%</span></td>
+  <td class="num">16</td>
+  <td class="num">27</td>
+  <td class="num">+11</td>
+</tr>
+<tr>
+  <td>django__django-11179</td>
+  <td><span class="tag tag-dsv4">DS V4</span></td>
+  <td class="resolved">→</td>
+  <td class="num">133,428</td>
+  <td class="num">155,450</td>
+  <td class="num"><span style="color:var(--red)">+22,022</span></td>
+  <td class="num"><span style="color:var(--red)">+16.5%</span></td>
+  <td class="num">20</td>
+  <td class="num">20</td>
+  <td class="num">0</td>
+</tr>
+<tr>
+  <td>django__django-11283</td>
+  <td><span class="tag tag-dsv4">DS V4</span></td>
+  <td class="resolved">→</td>
+  <td class="num">158,836</td>
+  <td class="num">827,200</td>
+  <td class="num"><span style="color:var(--red)">+668,364</span></td>
+  <td class="num"><span style="color:var(--red)">+420.8%</span></td>
+  <td class="num">16</td>
+  <td class="num">43</td>
+  <td class="num">+27</td>
+</tr>
+<tr>
+  <td>django__django-11422</td>
+  <td><span class="tag tag-dsv4">DS V4</span></td>
+  <td class="resolved">→</td>
+  <td class="num">520,638</td>
+  <td class="num">739,211</td>
+  <td class="num"><span style="color:var(--red)">+218,573</span></td>
+  <td class="num"><span style="color:var(--red)">+42.0%</span></td>
+  <td class="num">36</td>
+  <td class="num">39</td>
+  <td class="num">+3</td>
+</tr>
+<tr>
+  <td>django__django-11564</td>
+  <td><span class="tag tag-dsv4">DS V4</span></td>
+  <td class="unresolved">✗ ✗</td>
+  <td class="num">575,578</td>
+  <td class="num">1,423,574</td>
+  <td class="num"><span style="color:var(--red)">+847,996</span></td>
+  <td class="num"><span style="color:var(--red)">+147.3%</span></td>
+  <td class="num">31</td>
+  <td class="num">49</td>
+  <td class="num">+18</td>
+</tr>
+<tr>
+  <td>django__django-11583</td>
+  <td><span class="tag tag-dsv4">DS V4</span></td>
+  <td class="resolved">→</td>
+  <td class="num">145,612</td>
+  <td class="num">207,407</td>
+  <td class="num"><span style="color:var(--red)">+61,795</span></td>
+  <td class="num"><span style="color:var(--red)">+42.4%</span></td>
+  <td class="num">18</td>
+  <td class="num">21</td>
+  <td class="num">+3</td>
+</tr>
+<tr style="background:rgba(63,185,80,.04)">
+  <td>django__django-11620</td>
+  <td><span class="tag tag-dsv4">DS V4</span></td>
+  <td class="resolved">→</td>
+  <td class="num">2,088,378</td>
+  <td class="num">1,083,419</td>
+  <td class="num"><span style="color:var(--green);font-weight:700">−1,004,959</span></td>
+  <td class="num"><span style="color:var(--green);font-weight:700">−48.1%</span></td>
+  <td class="num">72</td>
+  <td class="num">54</td>
+  <td class="num"><span style="color:var(--green)">−18</span></td>
+</tr>
+<tr style="background:rgba(210,153,29,.06)">
+  <td>django__django-11630 ★</td>
+  <td><span class="tag tag-dsv4">DS V4</span></td>
+  <td class="unresolved">off only</td>
+  <td class="num">424,357</td>
+  <td class="num">431,430</td>
+  <td class="num"><span style="color:var(--dim)">+7,073</span></td>
+  <td class="num"><span style="color:var(--dim)">+1.7%</span></td>
+  <td class="num">32</td>
+  <td class="num">32</td>
+  <td class="num">0</td>
+</tr>
+<tr>
+  <td>django__django-11742</td>
+  <td><span class="tag tag-dsv4">DS V4</span></td>
+  <td class="unresolved">✗ ✗</td>
+  <td class="num">587,869</td>
+  <td class="num">1,245,018</td>
+  <td class="num"><span style="color:var(--red)">+657,149</span></td>
+  <td class="num"><span style="color:var(--red)">+111.8%</span></td>
+  <td class="num">39</td>
+  <td class="num">52</td>
+  <td class="num">+13</td>
+</tr>
+<tr>
+  <td>django__django-11797</td>
+  <td><span class="tag tag-dsv4">DS V4</span></td>
+  <td class="resolved">→</td>
+  <td class="num">4,953,181</td>
+  <td class="num">6,254,382</td>
+  <td class="num"><span style="color:var(--red)">+1,301,201</span></td>
+  <td class="num"><span style="color:var(--red)">+26.3%</span></td>
+  <td class="num">112</td>
+  <td class="num">131</td>
+  <td class="num">+19</td>
+</tr>
+<tr>
+  <td>django__django-11815</td>
+  <td><span class="tag tag-dsv4">DS V4</span></td>
+  <td class="resolved">→</td>
+  <td class="num">311,269</td>
+  <td class="num">733,747</td>
+  <td class="num"><span style="color:var(--red)">+422,478</span></td>
+  <td class="num"><span style="color:var(--red)">+135.7%</span></td>
+  <td class="num">28</td>
+  <td class="num">41</td>
+  <td class="num">+13</td>
+</tr>
+<tr>
+  <td>django__django-11848</td>
+  <td><span class="tag tag-dsv4">DS V4</span></td>
+  <td class="unresolved">✗ ✗</td>
+  <td class="num">247,358</td>
+  <td class="num">166,924</td>
+  <td class="num"><span style="color:var(--green)">−80,434</span></td>
+  <td class="num"><span style="color:var(--green)">−32.5%</span></td>
+  <td class="num">29</td>
+  <td class="num">22</td>
+  <td class="num">−7</td>
+</tr>
+
+</tbody>
+</table>
+</div>
+
+<p style="margin-top:0.75rem;font-size:0.8rem;color:var(--dim)">
+  <strong>★</strong> django__django-11630 — the only resolution disagreement across all 23 pairs.
+  Both arms saw identical key observations (confirmed word-for-word, 8,098 chars).
+  The different outcome is attributed to <strong>model variance</strong>, not RTK.
+</p>
+
+<!-- ================================================================ -->
+<h2 id="by-slice">Results by evaluation slice</h2>
+
+<div class="card" style="overflow-x:auto">
+<table>
+<thead>
+<tr>
+  <th>Slice</th>
+  <th>Model</th>
+  <th>Pairs</th>
+  <th>Resolved (off→on)</th>
+  <th>Off tokens</th>
+  <th>On tokens</th>
+  <th>Token Δ</th>
+  <th>Off calls</th>
+  <th>On calls</th>
+  <th>Call Δ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>0:5</td>
+  <td><span class="tag tag-m3">MiniMax M3</span></td>
+  <td class="num">4</td>
+  <td class="num">3/4 → 3/4</td>
+  <td class="num">3,424,113</td>
+  <td class="num">4,017,365</td>
+  <td class="num"><span style="color:var(--red)">+17.3%</span></td>
+  <td class="num">192</td>
+  <td class="num">232</td>
+  <td class="num"><span style="color:var(--red)">+20.8%</span></td>
+</tr>
+<tr>
+  <td>5:10</td>
+  <td><span class="tag tag-dsv4">DeepSeek V4 Flash</span></td>
+  <td class="num">4</td>
+  <td class="num">3/4 → 3/4</td>
+  <td class="num">1,748,705</td>
+  <td class="num">2,994,044</td>
+  <td class="num"><span style="color:var(--red)">+71.2%</span></td>
+  <td class="num">123</td>
+  <td class="num">177</td>
+  <td class="num"><span style="color:var(--red)">+43.9%</span></td>
+</tr>
+<tr>
+  <td>10:15</td>
+  <td><span class="tag tag-dsv4">DeepSeek V4 Flash</span></td>
+  <td class="num">5</td>
+  <td class="num">5/5 → 5/5</td>
+  <td class="num">510,642</td>
+  <td class="num">866,030</td>
+  <td class="num"><span style="color:var(--red)">+69.6%</span></td>
+  <td class="num">85</td>
+  <td class="num">108</td>
+  <td class="num"><span style="color:var(--red)">+27.1%</span></td>
+</tr>
+<tr>
+  <td>15:20</td>
+  <td><span class="tag tag-dsv4">DeepSeek V4 Flash</span></td>
+  <td class="num">5</td>
+  <td class="num">4/5 → 4/5</td>
+  <td class="num">3,488,042</td>
+  <td class="num">4,280,811</td>
+  <td class="num"><span style="color:var(--red)">+22.7%</span></td>
+  <td class="num">173</td>
+  <td class="num">206</td>
+  <td class="num"><span style="color:var(--red)">+19.1%</span></td>
+</tr>
+<tr style="background:rgba(210,153,29,.04)">
+  <td>20:25</td>
+  <td><span class="tag tag-dsv4">DeepSeek V4 Flash</span></td>
+  <td class="num">5</td>
+  <td class="num">3/5 → <span style="color:var(--orange)">2/5</span></td>
+  <td class="num">6,524,034</td>
+  <td class="num">8,831,501</td>
+  <td class="num"><span style="color:var(--red)">+35.4%</span></td>
+  <td class="num">240</td>
+  <td class="num">278</td>
+  <td class="num"><span style="color:var(--red)">+15.8%</span></td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<div class="card">
+<div class="grid2">
+  <div>
+    <h3 style="margin-top:0">Resolved-only subset (17 pairs)</h3>
+    <table style="font-size:0.82rem">
+      <thead><tr><th>Metric</th><th>RTK-off</th><th>RTK-on</th><th>Delta</th></tr></thead>
+      <tbody>
+        <tr><td>Total tokens</td><td class="num">11,634,956</td><td class="num">15,876,357</td><td class="num" style="color:var(--red)">+36.5%</td></tr>
+        <tr><td>Total calls</td><td class="num">580</td><td class="num">747</td><td class="num" style="color:var(--red)">+28.8%</td></tr>
+        <tr><td>Median tokens/inst</td><td class="num">251,603</td><td class="num">560,365</td><td class="num" style="color:var(--red)">+122.7%</td></tr>
+        <tr><td>Mean tokens/inst</td><td class="num">684,409</td><td class="num">933,903</td><td class="num" style="color:var(--red)">+36.5%</td></tr>
+        <tr><td>Median calls/inst</td><td class="num">23</td><td class="num">39</td><td class="num" style="color:var(--red)">+69.6%</td></tr>
+        <tr><td>Instances ↓ tokens</td><td colspan="2" style="text-align:center">4 / 17</td><td class="num"><span style="color:var(--green)">savings</span></td></tr>
+        <tr><td>Instances ↑ tokens</td><td colspan="2" style="text-align:center">13 / 17</td><td class="num"><span style="color:var(--red)">overuse</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div>
+    <p style="margin-bottom:0.75rem"><strong>Key insight:</strong> Even when we control for resolution success — excluding the 5 unresolved pairs — RTK-on still used significantly more tokens. This rules out "RTK helps on hard instances" as an explanation.</p>
+    <p>The resolved-only median jumps from 251k to 560k tokens per instance (+122.7%), confirming that RTK's cost amplification is not just an unresolved-instance phenomenon.</p>
+  </div>
+</div>
+</div>
+
+<!-- ================================================================ -->
+<h2 id="savings">Where RTK actually saved tokens</h2>
+
+<p>Despite the overall negative result, RTK-on used <em>fewer</em> tokens on 5 of 23 instances:</p>
+
+<div class="highlight-box good">
+  <table>
+    <thead><tr><th>Instance</th><th>Token delta</th><th>Call delta</th><th>Resolution</th><th>Key factor</th></tr></thead>
+    <tbody>
+      <tr><td>django__django-11620</td><td class="num" style="color:var(--green)">−1,004,959 (−48.1%)</td><td class="num" style="color:var(--green)">−18 calls</td><td class="resolved">both resolved</td><td>Large cost reduction on a verbose instance (72→54 calls)</td></tr>
+      <tr><td>astropy__astropy-14182</td><td class="num" style="color:var(--green)">−1,431,632 (−70.1%)</td><td class="num" style="color:var(--green)">−39 calls</td><td class="unresolved">both unresolved</td><td>Large reduction but neither arm resolved</td></tr>
+      <tr><td>django__django-10924</td><td class="num" style="color:var(--green)">−193,792 (−19.7%)</td><td class="num">−2 calls</td><td class="resolved">both resolved</td><td>Modest savings on a resolved instance</td></tr>
+      <tr><td>django__django-11848</td><td class="num" style="color:var(--green)">−80,434 (−32.5%)</td><td class="num" style="color:var(--green)">−7 calls</td><td class="unresolved">both unresolved</td><td>Savings but unresolved</td></tr>
+      <tr><td>django__django-11099</td><td class="num" style="color:var(--green)">−8,642 (−16.4%)</td><td class="num">−1 call</td><td class="resolved">both resolved</td><td>Small savings</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="callout warn">
+  <strong>Only 2 of the 5 "winning" instances</strong> also resolved successfully in both arms (django-11620 and django-10924).
+  The largest win (astropy-14182: −1.43M) is moot because neither arm resolved.
+</div>
+
+<!-- ================================================================ -->
+<h2 id="outlier">The smoking gun: astropy__astropy-14995</h2>
+
+<div class="card">
+<div class="grid2">
+  <div>
+    <table style="font-size:0.82rem">
+      <tr><th>Metric</th><th>rtk-off</th><th>rtk-on</th><th>Δ</th></tr>
+      <tr><td>Tokens</td><td class="num">623,671</td><td class="num">2,567,739</td><td class="num" style="color:var(--red);font-weight:700">+1,944,068</td></tr>
+      <tr><td>API calls</td><td class="num">40</td><td class="num">110</td><td class="num" style="color:var(--red);font-weight:700">+70</td></tr>
+      <tr><td>Share of total Δ</td><td></td><td></td><td class="num" style="color:var(--red)">75.5%</td></tr>
+    </table>
+  </div>
+  <div>
+    <p style="margin-bottom:0.5rem">This single instance accounts for <strong>three-quarters</strong> of the resolved-only token increase. The root cause is a <strong>pytest rewrite bug</strong>:</p>
+    <ol style="font-size:0.85rem">
+      <li>RTK rewrote <code>python -m pytest ...</code> → <code>rtk pytest ...</code></li>
+      <li>The rewritten command returned <code>Pytest: No tests collected</code></li>
+      <li>The agent saw the failure and tried to debug it — for <strong>70 extra turns</strong></li>
+      <li>Late turns each cost ~36k–41k tokens (full prompt history)</li>
+    </ol>
+  </div>
+</div>
+</div>
+
+<div class="callout danger">
+  <strong>This is not an outlier to dismiss.</strong> Smaller "Pytest: No tests collected" events appeared in 6 other RTK-on runs:
+  astropy-14182 (3×), astropy-6938, django-10914, django-10924, django-11039, django-11049.
+  The pytest rewrite problem is systematic, not a one-off.
+</div>
+
+<!-- ================================================================ -->
+<h2 id="diagnosis">Root cause diagnosis</h2>
+
+<h3>Why RTK consumed more tokens than it saved</h3>
+
+<div class="card">
+<p>The diagnosis distinguishes <strong>prompt tokens</strong> (input) from <strong>completion tokens</strong> (output) across the 13 paired trajectories examined in detail:</p>
+
+<table style="font-size:0.85rem;max-width:550px">
+  <tr><th></th><th>rtk-off</th><th>rtk-on</th><th>Δ</th></tr>
+  <tr><td>Total tokens</td><td class="num">5,683,460</td><td class="num">7,877,439</td><td class="num" style="color:var(--red)">+2,193,979</td></tr>
+  <tr><td>Prompt tokens</td><td class="num">5,592,396</td><td class="num">7,774,475</td><td class="num" style="color:var(--red)">+2,182,079</td></tr>
+  <tr><td>Completion tokens</td><td class="num">91,064</td><td class="num">102,964</td><td class="num">+11,900</td></tr>
+  <tr><td>API calls</td><td class="num">400</td><td class="num">517</td><td class="num" style="color:var(--red)">+117</td></tr>
+  <tr><td>Tool result chars</td><td class="num">448,201</td><td class="num">487,096</td><td class="num">+38,895</td></tr>
+  <tr><td>Assistant visible chars</td><td class="num">49,436</td><td class="num">34,874</td><td class="num" style="color:var(--green)">−14,562</td></tr>
+</table>
+</div>
+
+<div class="card">
+<h3 style="margin-top:0">The four mechanisms</h3>
+
+<ol>
+  <li><strong>Prompt-token amplification from extra calls.</strong> The +2.18M token increase is <em>overwhelmingly</em> prompt tokens (+99.5% of the delta), not longer assistant responses. Each extra turn repays the full conversational history.</li>
+
+  <li><strong>RTK changes command semantics.</strong> The worst case is pytest. <code>python -m pytest --help</code> behaved like <code>rtk pytest --help</code>, and test runs returned successful <code>No tests collected</code>. The agent mistrusted the environment and went into a debugging spiral. This is not a token-compaction problem — it's a <em>behavior preservation</em> problem.</li>
+
+  <li><strong>Compact outputs remove cues the model relies on.</strong> Compact <code>find</code>/<code>ls</code> summaries can be useful, but they can also force the agent to issue follow-up commands to recover exact paths or context. The savings on any single observation are dwarfed by the cost of an extra turn.</li>
+
+  <li><strong>Late extra calls are exponentially expensive.</strong> In astropy-14995, the final calls each cost ~36k–41k tokens because the prompt history had grown. The last 20 unnecessary-ish calls cost hundreds of thousands of tokens even though their raw outputs were often tiny.</li>
+</ol>
+</div>
+
+<div class="highlight-box">
+  <strong>Rewrite-log data confirms the scope.</strong> Across three RTK-on run groups, all pytest commands seen by the rewriter were changed:
+  <table style="font-size:0.85rem;margin-top:0.5rem">
+    <thead><tr><th>Run group</th><th>Total rewrites</th><th>Pytest originals</th><th>Pytest changed</th></tr></thead>
+    <tbody>
+      <tr><td>MiniMax M3 (0:5)</td><td class="num">232 rows, 116 changed</td><td class="num">53</td><td class="num" style="color:var(--red)">53 (100%)</td></tr>
+      <tr><td>DeepSeek V4 (5:10)</td><td class="num">216 rows, 72 changed</td><td class="num">6</td><td class="num" style="color:var(--red)">6 (100%)</td></tr>
+      <tr><td>DeepSeek V4 (10:15)</td><td class="num">112 rows, 44 changed</td><td class="num">2</td><td class="num" style="color:var(--red)">2 (100%)</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ================================================================ -->
+<h2 id="recommendations">Recommendations</h2>
+
+<div class="card">
+<ol>
+  <li>
+    <strong>Do not rewrite pytest or test-runner commands by default.</strong>
+    Leave <code>pytest</code>, <code>python -m pytest</code>, <code>./manage.py test</code>, <code>tox</code>, and similar
+    commands untouched unless RTK can exactly preserve exit status and semantics. Test commands are
+    pass/fail verification signals, not bulk information retrieval.
+  </li>
+
+  <li>
+    <strong>Never return success for "No tests collected" unless the underlying command would.</strong>
+    This is especially dangerous for SWE-bench agents because verification failures guide the next step.
+    Returning a clean exit code with a misleading message sent the agent into a debugging loop.
+  </li>
+
+  <li>
+    <strong>Use RTK mainly for read-only high-volume inspection commands.</strong>
+    Safer targets: <code>cat</code> on large files, broad <code>grep</code>, broad <code>find</code>, maybe <code>ls</code>.
+    Riskier targets: tests, scripts, commands with meaningful exit status, commands in pipelines where
+    downstream tools expect exact output.
+  </li>
+
+  <li>
+    <strong>Add a fallback/escape rule.</strong> If an RTK-rewritten command returns suspicious output
+    (<code>No tests collected</code>, parser/help text, timeout, or command-not-found), automatically
+    rerun the original command once without RTK and show both outputs.
+  </li>
+
+  <li>
+    <strong>Measure turn count as a first-class RTK metric.</strong> Token savings should be reported
+    alongside call deltas and loop indicators. RTK is only net-positive when it reduces observation
+    tokens <em>without</em> increasing the number of turns.
+  </li>
+</ol>
+</div>
+
+<!-- ================================================================ -->
+<h2 id="caveats">Caveats &amp; methodology</h2>
+
+<div class="card">
+<h3 style="margin-top:0">Experimental design</h3>
+<ul>
+  <li><strong>23 paired instances</strong> from SWE-bench Lite across 5 independent slices.</li>
+  <li>Each pair runs the <em>same instance</em> with the <em>same model</em> — once with RTK command rewriting (on) and once without (off).</li>
+  <li>Two models tested: <span class="tag tag-m3" style="font-size:0.75rem">MiniMax M3</span> (4 pairs, slice 0:5) and <span class="tag tag-dsv4" style="font-size:0.75rem">DeepSeek V4 Flash</span> (19 pairs, slices 5:25).</li>
+  <li>Hard caps (per-instance token budget + step limit) were identical across both arms.</li>
+  <li>Resolution graded with the standard SWE-bench harness (<code>SWE-bench/SWE-bench_Lite</code> dataset).</li>
+</ul>
+
+<h3>Exclusions</h3>
+<ul>
+  <li><code>astropy__astropy-14365</code> — excluded entirely; rtk-off run hung, no paired trajectory.</li>
+  <li><code>django__django-11019</code> — excluded entirely; incomplete paired trajectory.</li>
+</ul>
+
+<h3>What this evaluation does NOT test</h3>
+<ul>
+  <li>This tests RTK <em>as an automatic command rewriter in an agent loop</em> (similar to RTK's auto-rewrite hook behavior). It does not test interactive RTK use by a human developer.</li>
+  <li>The results are specific to SWE-bench Lite — a self-contained bug-fixing benchmark. RTK may behave differently on other agent workloads.</li>
+  <li>Only two models were tested. Different models may respond differently to rewritten observations.</li>
+</ul>
+
+<h3>Interpretation</h3>
+<p>The takeaway is <em>not</em> that RTK is a bad tool. It is that <strong>transparent automatic rewriting of agent commands</strong> has second-order effects that can overwhelm first-order token savings. The pytest rewrite case demonstrates that even correct-looking rewrites (compacting test output) can break the agent's verification loop. RTK's value proposition — compacting large command output — is real, but must be scoped to commands where the risk of behavior change does not trigger extra agent turns.</p>
+</div>
+
+<footer style="margin-top:3rem;padding-top:1rem;border-top:1px solid var(--border);color:var(--dim);font-size:0.8rem">
+  Generated from evaluation data in <code>logs/run_evaluation_summary_*.md</code> · <code>logs/rtk_token_overuse_diagnosis_20260623.md</code> · 10 <code>sb_result.json</code> files · June 2026
+</footer>
+
+</body>
+</html>

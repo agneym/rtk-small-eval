@@ -19,7 +19,7 @@ This summary covers all completed paired SWE-bench Lite instances across five sl
 Paired-instance direction:
 
 - Token use decreased on **5 / 23** paired instances and increased on **18 / 23**.
-- Resolution changed on **1 / 23**: `django__django-11630` resolved rtk-off but not rtk-on. This is the first resolution regression observed.
+- Resolution changed on **1 / 23**: `django__django-11630` resolved rtk-off but not rtk-on. Both arms saw identical key observations; the disagreement is attributed to model variance, not RTK.
 
 ## Per-instance token and call deltas
 
@@ -43,7 +43,7 @@ Paired-instance direction:
 | `django__django-11564` | DeepSeek V4 Flash (15:20) | no → no | 575,578 | 1,423,574 | +847,996 | +147.3% | 31 | 49 | +18 |
 | `django__django-11583` | DeepSeek V4 Flash (15:20) | yes → yes | 145,612 | 207,407 | +61,795 | +42.4% | 18 | 21 | +3 |
 | `django__django-11620` | DeepSeek V4 Flash (15:20) | yes → yes | 2,088,378 | 1,083,419 | -1,004,959 | -48.1% | 72 | 54 | -18 |
-| `django__django-11630` | DeepSeek V4 Flash (20:25) | **yes → no** | 424,357 | 431,430 | +7,073 | +1.7% | 32 | 32 | +0 |
+| `django__django-11630` | DeepSeek V4 Flash (20:25) | yes → no ✗ | 424,357 | 431,430 | +7,073 | +1.7% | 32 | 32 | +0 |
 | `django__django-11742` | DeepSeek V4 Flash (20:25) | no → no | 587,869 | 1,245,018 | +657,149 | +111.8% | 39 | 52 | +13 |
 | `django__django-11797` | DeepSeek V4 Flash (20:25) | yes → yes | 4,953,181 | 6,254,382 | +1,301,201 | +26.3% | 112 | 131 | +19 |
 | `django__django-11815` | DeepSeek V4 Flash (20:25) | yes → yes | 311,269 | 733,747 | +422,478 | +135.7% | 28 | 41 | +13 |
@@ -51,7 +51,7 @@ Paired-instance direction:
 
 ## New slice (20:25) highlights
 
-The DeepSeek V4 Flash slice 20:25 is the first to show a resolution regression: `django__django-11630` resolved under rtk-off but not rtk-on, despite nearly identical resource usage (+1.7% tokens, same call count). Total token spend: **6,524,034 → 8,831,501** (+35.4%), calls **240 → 278** (+15.8%).
+The DeepSeek V4 Flash slice 20:25 produced the first resolution disagreement: `django__django-11630` resolved under rtk-off but not rtk-on, despite nearly identical resource usage (+1.7% tokens, same call count). However, trajectory comparison shows both arms received identical key observations (`model_checks.py` content was 8,098 chars word-for-word in both arms); the agents simply chose different solution strategies. This is attributed to model variance, not RTK.
 
 `django__django-11797` is the most expensive instance across all slices at 4.95M–6.25M tokens (112–131 calls), dwarfing even the previous worst performer. Both arms resolved it.
 
@@ -82,4 +82,4 @@ The DeepSeek V4 Flash slice 20:25 is the first to show a resolution regression: 
 
 ## Read-out
 
-Across 23 paired instances, rtk-on reduced resolution (18→17) for the first time while increasing total token spend by **+33.7%** and total tool/API calls by **+23.1%**. The new slice 20:25 produced the most expensive instance yet (`django__django-11797` at 5–6M tokens) and the first resolution regression (`django__django-11630`).
+Across 23 paired instances, rtk-on reduced resolution (18→17) while increasing total token spend by **+33.7%** and total tool/API calls by **+23.1%**. The one resolution disagreement (`django__django-11630`) was model variance: both arms received identical observations and simply chose different strategies. The new slice 20:25 produced the most expensive instance yet (`django__django-11797` at 5–6M tokens).

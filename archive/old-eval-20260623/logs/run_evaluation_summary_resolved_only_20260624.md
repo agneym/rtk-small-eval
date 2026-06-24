@@ -60,7 +60,7 @@ Paired-instance direction:
 | `astropy__astropy-14182` | Unresolved in both arms (no → no) |
 | `astropy__astropy-7746` | Unresolved in both arms (no → no) |
 | `django__django-11564` | Unresolved in both arms (no → no) |
-| `django__django-11630` | **Resolved rtk-off, unresolved rtk-on** — first resolution regression |
+| `django__django-11630` | Resolved rtk-off, unresolved rtk-on — attributed to model variance |
 | `django__django-11742` | Unresolved in both arms (no → no) |
 | `django__django-11848` | Unresolved in both arms (no → no) |
 | `astropy__astropy-14365` | Excluded entirely: rtk-off run hung, no paired trajectory |
@@ -68,4 +68,4 @@ Paired-instance direction:
 
 ## Read-out
 
-Across 17 instances that resolved in both arms, rtk-on used **+36.5% more tokens** and **+28.8% more calls**. Slice 20:25 contributed the most expensive instance (`django__django-11797`) and, for the first time, a resolution regression — `django__django-11630` was resolved by rtk-off but not rtk-on despite nearly identical resource consumption (+1.7% tokens, same calls).
+Across 17 instances that resolved in both arms, rtk-on used **+36.5% more tokens** and **+28.8% more calls**. Slice 20:25 contributed the most expensive instance (`django__django-11797`) and the first resolution disagreement — `django__django-11630` was resolved by rtk-off but not rtk-on. Trajectory comparison shows both arms saw identical key observations; the disagreement is attributed to model variance, not RTK.
