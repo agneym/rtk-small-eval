@@ -4,35 +4,36 @@ This repo measures mini-swe-agent SWE-bench Lite runs with and without RTK comma
 
 ## What we learned
 
-The resolved-only evaluation showed RTK-on used **more** tokens, not fewer:
+Across 18 paired instances from four slices of SWE-bench Lite, RTK-on consistently used **more** tokens, not fewer:
 
-- 11 paired instances resolved in both arms.
-- RTK-off: **3,457,042** total tokens, **298** calls.
-- RTK-on: **6,030,991** total tokens, **418** calls.
-- Delta: **+2,573,949 tokens (+74.5%)** and **+120 calls (+40.3%)**.
+- 15 paired instances resolved in both arms. 3 unresolved in both arms. No resolution changes.
+- RTK-off: **9,171,502** total tokens, **573** calls.
+- RTK-on: **12,158,250** total tokens, **723** calls.
+- Delta: **+2,986,748 tokens (+32.6%)** and **+150 calls (+26.2%)**.
+- Resolved-only: **6,370,506 → 8,888,228 tokens (+39.5%)**, **440 → 575 calls (+30.7%)**.
 
 The main lesson is that RTK's per-command output savings can be overwhelmed if rewriting changes behavior enough to create extra agent turns. The biggest outlier was `astropy__astropy-14995`: RTK-on spent **+1.94M tokens** and **+70 calls**, mostly because pytest commands were rewritten to `rtk pytest ...`, which produced repeated `Pytest: No tests collected` observations and sent the agent into a debugging loop.
 
 Read these first:
 
-- `logs/run_evaluation_summary_resolved_only_20260623.md` — headline resolved-only token/call comparison.
-- `logs/run_evaluation_summary_20260623.md` — full comparison including unresolved pairs.
+- `logs/run_evaluation_summary_resolved_only_20260624.md` — headline resolved-only token/call comparison.
+- `logs/run_evaluation_summary_20260624.md` — full comparison including unresolved pairs.
 - `logs/rtk_token_overuse_diagnosis_20260623.md` — diagnosis of why RTK consumed more tokens.
 
 ```mermaid
 xyChart-beta
-    title "Total tokens spent"
+    title "Total tokens spent (all 18 pairs)"
     x-axis ["rtk-off", "rtk-on"]
-    y-axis "tokens" 0 --> 6500000
-    bar [3457042, 6030991]
+    y-axis "tokens" 0 --> 13000000
+    bar [9171502, 12158250]
 ```
 
 ```mermaid
 xyChart-beta
-    title "Total tool/API calls"
+    title "Total tool/API calls (all 18 pairs)"
     x-axis ["rtk-off", "rtk-on"]
-    y-axis "calls" 0 --> 450
-    bar [298, 418]
+    y-axis "calls" 0 --> 800
+    bar [573, 723]
 ```
 
 Important interpretation: this is not caused by merely installing RTK. It is caused by putting RTK in the command path via our transparent `rtk rewrite` harness, which is similar to RTK's auto-rewrite hook behavior. Test-runner rewrites should be treated carefully or excluded.
@@ -139,6 +140,6 @@ Current RTK rewrite rules rewrite pytest commands, e.g. `python -m pytest ...` t
 See:
 
 - `logs/rtk_token_overuse_diagnosis_20260623.md`
-- `logs/run_evaluation_summary_resolved_only_20260623.md`
+- `logs/run_evaluation_summary_resolved_only_20260624.md`
 
 For more implementation detail, read `docs/using-rtk-with-harness.md`.

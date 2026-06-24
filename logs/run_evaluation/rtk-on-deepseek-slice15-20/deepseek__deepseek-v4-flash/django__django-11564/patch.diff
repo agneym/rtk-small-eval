@@ -1,0 +1,57 @@
+diff --git a/django/core/files/storage.py b/django/core/files/storage.py
+index 4c27fce605..a1c64d28f7 100644
+--- a/django/core/files/storage.py
++++ b/django/core/files/storage.py
+@@ -1,6 +1,6 @@
+ import os
+ from datetime import datetime
+-from urllib.parse import urljoin
++from urllib.parse import urljoin, urlsplit
+ 
+ from django.conf import settings
+ from django.core.exceptions import SuspiciousFileOperation
+@@ -332,7 +332,16 @@ class FileSystemStorage(Storage):
+         url = filepath_to_uri(name)
+         if url is not None:
+             url = url.lstrip('/')
+-        return urljoin(self.base_url, url)
++        final_url = urljoin(self.base_url, url)
++        # Prepend the script prefix (SCRIPT_NAME) to the URL if it's a
++        # relative path (no scheme or netloc).
++        from django.urls import get_script_prefix
++        script_prefix = get_script_prefix()
++        if urlsplit(final_url).netloc:
++            return final_url
++        if script_prefix == '/':
++            return final_url
++        return urljoin(script_prefix, final_url[1:])
+ 
+     def _datetime_from_timestamp(self, ts):
+         """
+diff --git a/django/templatetags/static.py b/django/templatetags/static.py
+index 39712aaba0..7705dc5dd3 100644
+--- a/django/templatetags/static.py
++++ b/django/templatetags/static.py
+@@ -1,4 +1,4 @@
+-from urllib.parse import quote, urljoin
++from urllib.parse import quote, urljoin, urlsplit
+ 
+ from django import template
+ from django.apps import apps
+@@ -44,7 +44,15 @@ class PrefixNode(template.Node):
+             prefix = ''
+         else:
+             prefix = iri_to_uri(getattr(settings, name, ''))
+-        return prefix
++        # Prepend the script prefix (SCRIPT_NAME) to the URL if it's a
++        # relative path (no scheme or netloc).
++        from django.urls import get_script_prefix
++        script_prefix = get_script_prefix()
++        if urlsplit(prefix).netloc:
++            return prefix
++        if script_prefix == '/':
++            return prefix
++        return urljoin(script_prefix, prefix[1:])
+ 
+     def render(self, context):
+         prefix = self.handle_simple(self.name)
