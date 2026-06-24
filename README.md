@@ -21,16 +21,16 @@ Read these first:
 - `logs/rtk_token_overuse_diagnosis_20260623.md` — diagnosis of why RTK consumed more tokens.
 
 ```mermaid
-xyChart-beta
-    title "Total tokens spent (all 18 pairs)"
+xychart-beta
+    title "Total tokens spent — all 18 pairs"
     x-axis ["rtk-off", "rtk-on"]
     y-axis "tokens" 0 --> 13000000
     bar [9171502, 12158250]
 ```
 
 ```mermaid
-xyChart-beta
-    title "Total tool/API calls (all 18 pairs)"
+xychart-beta
+    title "Total tool/API calls — all 18 pairs"
     x-axis ["rtk-off", "rtk-on"]
     y-axis "calls" 0 --> 800
     bar [573, 723]
