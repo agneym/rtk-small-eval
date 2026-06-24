@@ -1,0 +1,49 @@
+diff --git a/django/core/checks/model_checks.py b/django/core/checks/model_checks.py
+index 5c2266ca1d..690dac6df3 100644
+--- a/django/core/checks/model_checks.py
++++ b/django/core/checks/model_checks.py
+@@ -17,9 +17,12 @@ def check_all_models(app_configs=None, **kwargs):
+         models = apps.get_models()
+     else:
+         models = chain.from_iterable(app_config.get_models() for app_config in app_configs)
++    # Store model objects for later database routing check
++    managed_models = []
+     for model in models:
+         if model._meta.managed and not model._meta.proxy:
+             db_table_models[model._meta.db_table].append(model._meta.label)
++            managed_models.append(model)
+         if not inspect.ismethod(model.check):
+             errors.append(
+                 Error(
+@@ -37,14 +40,23 @@ def check_all_models(app_configs=None, **kwargs):
+             constraints[model_constraint.name].append(model._meta.label)
+     for db_table, model_labels in db_table_models.items():
+         if len(model_labels) != 1:
+-            errors.append(
+-                Error(
+-                    "db_table '%s' is used by multiple models: %s."
+-                    % (db_table, ', '.join(db_table_models[db_table])),
+-                    obj=db_table,
+-                    id='models.E028',
+-                )
+-            )
++            # Check if any of the colliding models share the same database.
++            # If they use different databases, no collision occurs.
++            from django.db import connections, router
++            model_labels_set = set(model_labels)
++            colliding_models = [m for m in managed_models if m._meta.label in model_labels_set]
++            for db_alias in connections:
++                models_in_db = [m for m in colliding_models if router.allow_migrate_model(db_alias, m)]
++                if len(models_in_db) > 1:
++                    errors.append(
++                        Error(
++                            "db_table '%s' is used by multiple models: %s."
++                            % (db_table, ', '.join(db_table_models[db_table])),
++                            obj=db_table,
++                            id='models.E028',
++                        )
++                    )
++                    break
+     for index_name, model_labels in indexes.items():
+         if len(model_labels) > 1:
+             model_labels = set(model_labels)

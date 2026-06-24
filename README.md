@@ -4,13 +4,13 @@ This repo measures mini-swe-agent SWE-bench Lite runs with and without RTK comma
 
 ## What we learned
 
-Across 18 paired instances from four slices of SWE-bench Lite, RTK-on consistently used **more** tokens, not fewer:
+Across 23 paired instances from five slices of SWE-bench Lite, RTK-on consistently used **more** tokens, not fewer:
 
-- 15 paired instances resolved in both arms. 3 unresolved in both arms. No resolution changes.
-- RTK-off: **9,171,502** total tokens, **573** calls.
-- RTK-on: **12,158,250** total tokens, **723** calls.
-- Delta: **+2,986,748 tokens (+32.6%)** and **+150 calls (+26.2%)**.
-- Resolved-only: **6,370,506 → 8,888,228 tokens (+39.5%)**, **440 → 575 calls (+30.7%)**.
+- 17 paired instances resolved in both arms. 5 unresolved in both arms. 1 resolved rtk-off only — first resolution regression.
+- RTK-off: **15,696,536** total tokens, **813** calls. Resolved: **18/23**.
+- RTK-on: **20,989,751** total tokens, **1,001** calls. Resolved: **17/23**.
+- Delta: **+5,293,215 tokens (+33.7%)** and **+188 calls (+23.1%)**.
+- Resolved-only: **11,634,956 → 15,876,357 tokens (+36.5%)**, **580 → 747 calls (+28.8%)**.
 
 The main lesson is that RTK's per-command output savings can be overwhelmed if rewriting changes behavior enough to create extra agent turns. The biggest outlier was `astropy__astropy-14995`: RTK-on spent **+1.94M tokens** and **+70 calls**, mostly because pytest commands were rewritten to `rtk pytest ...`, which produced repeated `Pytest: No tests collected` observations and sent the agent into a debugging loop.
 
@@ -22,18 +22,18 @@ Read these first:
 
 ```mermaid
 xychart-beta
-    title "Total tokens spent — all 18 pairs"
+    title "Total tokens spent — all 23 pairs"
     x-axis ["rtk-off", "rtk-on"]
-    y-axis "tokens" 0 --> 13000000
-    bar [9171502, 12158250]
+    y-axis "tokens" 0 --> 22000000
+    bar [15696536, 20989751]
 ```
 
 ```mermaid
 xychart-beta
-    title "Total tool/API calls — all 18 pairs"
+    title "Total tool/API calls — all 23 pairs"
     x-axis ["rtk-off", "rtk-on"]
-    y-axis "calls" 0 --> 800
-    bar [573, 723]
+    y-axis "calls" 0 --> 1100
+    bar [813, 1001]
 ```
 
 Important interpretation: this is not caused by merely installing RTK. It is caused by putting RTK in the command path via our transparent `rtk rewrite` harness, which is similar to RTK's auto-rewrite hook behavior. Test-runner rewrites should be treated carefully or excluded.
