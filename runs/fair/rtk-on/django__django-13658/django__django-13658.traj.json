@@ -1,0 +1,1223 @@
+{
+  "info": {
+    "model_stats": {
+      "instance_cost": 0.0010751944000000002,
+      "api_calls": 13
+    },
+    "config": {
+      "agent": {
+        "system_template": "You are a helpful assistant that can interact with a computer shell to solve programming tasks.\n\n## RTK Auto-Rewrite\n\nAn RTK proxy (`/usr/local/bin/rtk`) is installed in this environment. It\ntransparently rewrites many common dev commands to token-optimized equivalents\nbefore execution:\n\n- `git status` \u2192 `rtk git status` (compact output, ~80% fewer tokens)\n- `cat file.py` \u2192 `rtk read file.py` (smart filtering)\n- `grep pattern .` \u2192 `rtk grep pattern .` (grouped, deduplicated)\n- `find *.py .` \u2192 `rtk find *.py .` (compact tree)\n- `pytest ...` \u2192 `rtk pytest ...` (failures only, ~90% fewer tokens)\n\nThis happens automatically \u2014 you don't need to call `rtk` explicitly.\nThe environment handles the rewriting transparently.\n\n**Important: RTK can change command semantics.**\n- `rtk pytest` shows only failures and may report \"No tests collected\"\n  differently than bare `pytest`.\n- If a rewritten command produces suspicious or unexpected output, you\n  can BYPASS rtk by prefixing your command with `RTK_DISABLED=1`:\n  `RTK_DISABLED=1 python -m pytest tests/test_foo.py -v`\n- To run rtk explicitly (bypass the auto-rewrite), use `rtk <subcommand>`.\n\n**Meta-commands:**\n- `rtk --version` \u2014 check rtk is installed\n- `rtk pytest --help` \u2014 see rtk's pytest wrapper options (differs from bare pytest --help)\n- If test output looks wrong, always try `RTK_DISABLED=1` to see the raw result.\n",
+        "instance_template": "<pr_description>\nConsider the following PR description:\n{{task}}\n</pr_description>\n\n<instructions>\n# Task Instructions\n\n## Overview\n\nYou're a software engineer interacting continuously with a computer by submitting commands.\nYou'll be helping implement necessary changes to meet requirements in the PR description.\nYour task is specifically to make changes to non-test files in the current directory in order to fix the issue described in the PR description in a way that is general and consistent with the codebase.\n<IMPORTANT>This is an interactive process where you will think and issue AT LEAST ONE command, see the result, then think and issue your next command(s).</important>\n\nFor each response:\n\n1. Include a THOUGHT section explaining your reasoning and what you're trying to accomplish\n2. Provide one or more bash tool calls to execute\n\n## Important Boundaries\n\n- MODIFY: Regular source code files in /testbed (this is the working directory for all your subsequent commands)\n- DO NOT MODIFY: Tests, configuration files (pyproject.toml, setup.cfg, etc.)\n\n## Recommended Workflow\n\n1. Analyze the codebase by finding and reading relevant files\n2. Create a script to reproduce the issue\n3. Edit the source code to resolve the issue\n4. Verify your fix works by running your script again\n5. Test edge cases to ensure your fix is robust\n\n## Command Execution Rules\n\nYou are operating in an environment where\n\n1. You issue at least one command\n2. The system executes the command(s) in a subshell\n3. You see the result(s)\n4. You write your next command(s)\n\nEach response should include:\n\n1. **Reasoning text** where you explain your analysis and plan\n2. At least one tool call with your command\n\n**CRITICAL REQUIREMENTS:**\n\n- Your response SHOULD include reasoning text explaining what you're doing\n- Your response MUST include AT LEAST ONE bash tool call. You can make MULTIPLE tool calls in a single response when the commands are independent (e.g., searching multiple files, reading different parts of the codebase).\n- Directory or environment variable changes are not persistent. Every action is executed in a new subshell.\n- However, you can prefix any action with `MY_ENV_VAR=MY_VALUE cd /path/to/working/dir && ...` or write/load environment variables from files\n\nExample of a CORRECT response:\n<example_response>\nI need to understand the Builder-related code. Let me find relevant files and check the project structure.\n\n[Makes multiple bash tool calls: {\"command\": \"ls -la\"}, {\"command\": \"find src -name '*.java' | grep -i builder\"}, {\"command\": \"cat README.md | head -50\"}]\n</example_response>\n\n## Environment Details\n\n- You have a full Linux shell environment\n- Always use non-interactive flags (-y, -f) for commands\n- Avoid interactive tools like vi, nano, or any that require user input\n- You can use bash commands or invoke any tool that is available in the environment\n- You can also create new tools or scripts to help you with the task\n- If a tool isn't available, you can also install it\n\n## Submission\n\nWhen you've completed your work, you MUST submit your changes as a git patch.\nFollow these steps IN ORDER, with SEPARATE commands:\n\nStep 1: Create the patch file\nRun `git diff -- path/to/file1 path/to/file2 > patch.txt` listing only the source files you modified.\nDo NOT commit your changes.\n\n<IMPORTANT>\nThe patch must only contain changes to the specific source files you modified to fix the issue.\nDo not submit file creations or changes to any of the following files:\n\n- test and reproduction files\n- helper scripts, tests, or tools that you created\n- installation, build, packaging, configuration, or setup scripts unless they are directly part of the issue you were fixing (you can assume that the environment is already set up for your client)\n- binary or compiled files\n</IMPORTANT>\n\nStep 2: Verify your patch\nInspect patch.txt to confirm it only contains your intended changes and headers show `--- a/` and `+++ b/` paths.\n\nStep 3: Submit (EXACT command required)\nYou MUST use this EXACT command to submit:\n\n```bash\necho COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT && cat patch.txt\n```\n\nIf the command fails (nonzero exit status), it will not submit.\n\n<CRITICAL>\n- Creating/viewing the patch and submitting it MUST be separate commands (not combined with &&).\n- If you modify patch.txt after verifying, you SHOULD verify again before submitting.\n- You CANNOT continue working (reading, editing, testing) in any way on this task after submitting.\n</CRITICAL>\n</instructions>\n",
+        "step_limit": 100,
+        "cost_limit": 3.0,
+        "wall_time_limit_seconds": 0,
+        "max_consecutive_format_errors": 3,
+        "output_path": null
+      },
+      "agent_type": "minisweagent.run.benchmarks.utils.common.ProgressTrackingAgent",
+      "model": {
+        "model_name": "deepseek/deepseek-v4-flash",
+        "model_kwargs": {
+          "drop_params": true,
+          "parallel_tool_calls": true
+        },
+        "litellm_model_registry": null,
+        "set_cache_control": null,
+        "cost_tracking": "ignore_errors",
+        "format_error_template": "{% if finish_reason is defined and finish_reason in [\"length\", \"tool_calls\"] -%}\nYour previous response reached the output token limit (finish_reason={{ finish_reason }}) before you produced a tool call, so it was cut off. Respond more concisely and finish with exactly one bash tool call. If you need to think more, do so briefly.\n{%- else -%}\nTool call error:\n\n<error>\n{{error}}\n</error>\n\nHere is general guidance on how to submit correct toolcalls:\n\nEvery response needs to use the 'bash' tool at least once to execute commands.\n\nCall the bash tool with your command as the argument:\n- Tool: bash\n- Arguments: {\"command\": \"your_command_here\"}\n\nIf you have completed your assignment, please consult the first message about how to\nsubmit your solution (you will not be able to continue working on this task after that).\n{%- endif %}\n",
+        "observation_template": "{% if output.exception_info -%}\n<exception>{{output.exception_info}}</exception>\n{% endif -%}\n<returncode>{{output.returncode}}</returncode>\n{% if output.output | length < 10000 -%}\n<output>\n{{ output.output -}}\n</output>\n{%- else -%}\n<warning>\nThe output of your last command was too long.\nPlease try a different command that produces less output.\nIf you're looking at a file you can try use head, tail or sed to view a smaller number of lines selectively.\nIf you're using grep or find and it produced too much output, you can use a more selective search pattern.\nIf you really need to see something from the full command's output, you can redirect output to a file and then search in that file.\n</warning>\n{%- set elided_chars = output.output | length - 10000 -%}\n<output_head>\n{{ output.output[:5000] }}\n</output_head>\n<elided_chars>\n{{ elided_chars }} characters elided\n</elided_chars>\n<output_tail>\n{{ output.output[-5000:] }}\n</output_tail>\n{%- endif -%}\n",
+        "multimodal_regex": ""
+      },
+      "model_type": "minisweagent.models.litellm_model.LitellmModel",
+      "environment": {
+        "image": "docker.io/swebench/sweb.eval.x86_64.django_1776_django-13658:latest",
+        "cwd": "/testbed",
+        "env": {
+          "PAGER": "cat",
+          "MANPAGER": "cat",
+          "LESS": "-R",
+          "PIP_PROGRESS_BAR": "off",
+          "TQDM_DISABLE": "1",
+          "BASH_ENV": "/root/.bashrc"
+        },
+        "forward_env": [],
+        "timeout": 60,
+        "executable": "docker",
+        "run_args": [
+          "--rm"
+        ],
+        "container_timeout": "2h",
+        "pull_timeout": 120,
+        "interpreter": [
+          "bash",
+          "-c"
+        ],
+        "run_id": "d055648f559246d582aab76a281428e7",
+        "rtk_enabled": true,
+        "rtk_path": "/Users/agney/.local/share/mise/installs/aqua-rtk-ai-rtk/0.42.4/rtk",
+        "rtk_linux_binary": "vendor/rtk-x86_64-unknown-linux-musl",
+        "rtk_container_path": "/usr/local/bin/rtk",
+        "rtk_rewrite_timeout": 5.0,
+        "rtk_rewrite_log_path": "runs/fair/rtk-on/rtk_rewrite.log",
+        "exclude_commands": []
+      },
+      "environment_type": "rtk_env.RtkDockerEnvironment"
+    },
+    "mini_version": "2.4.2",
+    "exit_status": "Submitted",
+    "submission": "diff --git a/django/core/management/__init__.py b/django/core/management/__init__.py\nindex 1ba093e51f..f5863e9a02 100644\n--- a/django/core/management/__init__.py\n+++ b/django/core/management/__init__.py\n@@ -344,7 +344,11 @@ class ManagementUtility:\n         # Preprocess options to extract --settings and --pythonpath.\n         # These options could affect the commands that are available, so they\n         # must be processed early.\n-        parser = CommandParser(usage='%(prog)s subcommand [options] [args]', add_help=False, allow_abbrev=False)\n+        parser = CommandParser(\n+            prog=self.prog_name,\n+            usage=\"%(prog)s subcommand [options] [args]\",\n+            add_help=False,\n+            allow_abbrev=False)\n         parser.add_argument('--settings')\n         parser.add_argument('--pythonpath')\n         parser.add_argument('args', nargs='*')  # catch-all\n"
+  },
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a helpful assistant that can interact with a computer shell to solve programming tasks.\n\n## RTK Auto-Rewrite\n\nAn RTK proxy (`/usr/local/bin/rtk`) is installed in this environment. It\ntransparently rewrites many common dev commands to token-optimized equivalents\nbefore execution:\n\n- `git status` \u2192 `rtk git status` (compact output, ~80% fewer tokens)\n- `cat file.py` \u2192 `rtk read file.py` (smart filtering)\n- `grep pattern .` \u2192 `rtk grep pattern .` (grouped, deduplicated)\n- `find *.py .` \u2192 `rtk find *.py .` (compact tree)\n- `pytest ...` \u2192 `rtk pytest ...` (failures only, ~90% fewer tokens)\n\nThis happens automatically \u2014 you don't need to call `rtk` explicitly.\nThe environment handles the rewriting transparently.\n\n**Important: RTK can change command semantics.**\n- `rtk pytest` shows only failures and may report \"No tests collected\"\n  differently than bare `pytest`.\n- If a rewritten command produces suspicious or unexpected output, you\n  can BYPASS rtk by prefixing your command with `RTK_DISABLED=1`:\n  `RTK_DISABLED=1 python -m pytest tests/test_foo.py -v`\n- To run rtk explicitly (bypass the auto-rewrite), use `rtk <subcommand>`.\n\n**Meta-commands:**\n- `rtk --version` \u2014 check rtk is installed\n- `rtk pytest --help` \u2014 see rtk's pytest wrapper options (differs from bare pytest --help)\n- If test output looks wrong, always try `RTK_DISABLED=1` to see the raw result."
+    },
+    {
+      "role": "user",
+      "content": "<pr_description>\nConsider the following PR description:\nManagementUtility instantiates CommandParser without passing already-computed prog argument\nDescription\n\t\nManagementUtility \u200bgoes to the trouble to parse the program name from the argv it's passed rather than from sys.argv: \n\tdef __init__(self, argv=None):\n\t\tself.argv = argv or sys.argv[:]\n\t\tself.prog_name = os.path.basename(self.argv[0])\n\t\tif self.prog_name == '__main__.py':\n\t\t\tself.prog_name = 'python -m django'\nBut then when it needs to parse --pythonpath and --settings, it \u200buses the program name from sys.argv: \n\t\tparser = CommandParser(usage='%(prog)s subcommand [options] [args]', add_help=False, allow_abbrev=False)\nAbove \"%(prog)s\" \u200brefers to sys.argv[0]. Instead, it should refer to self.prog_name. This can fixed as follows:\n\t\tparser = CommandParser(\n\t\t\tprog=self.prog_name,\n\t\t\tusage='%(prog)s subcommand [options] [args]',\n\t\t\tadd_help=False,\n\t\t\tallow_abbrev=False)\nI'm aware that execute_from_command_line is a private API, but it'd be really convenient for me if it worked properly in my weird embedded environment where sys.argv[0] is \u200bincorrectly None. If passing my own argv to execute_from_command_line avoided all the ensuing exceptions, I wouldn't have to modify sys.argv[0] globally as I'm doing in the meantime.\n\n</pr_description>\n\n<instructions>\n# Task Instructions\n\n## Overview\n\nYou're a software engineer interacting continuously with a computer by submitting commands.\nYou'll be helping implement necessary changes to meet requirements in the PR description.\nYour task is specifically to make changes to non-test files in the current directory in order to fix the issue described in the PR description in a way that is general and consistent with the codebase.\n<IMPORTANT>This is an interactive process where you will think and issue AT LEAST ONE command, see the result, then think and issue your next command(s).</important>\n\nFor each response:\n\n1. Include a THOUGHT section explaining your reasoning and what you're trying to accomplish\n2. Provide one or more bash tool calls to execute\n\n## Important Boundaries\n\n- MODIFY: Regular source code files in /testbed (this is the working directory for all your subsequent commands)\n- DO NOT MODIFY: Tests, configuration files (pyproject.toml, setup.cfg, etc.)\n\n## Recommended Workflow\n\n1. Analyze the codebase by finding and reading relevant files\n2. Create a script to reproduce the issue\n3. Edit the source code to resolve the issue\n4. Verify your fix works by running your script again\n5. Test edge cases to ensure your fix is robust\n\n## Command Execution Rules\n\nYou are operating in an environment where\n\n1. You issue at least one command\n2. The system executes the command(s) in a subshell\n3. You see the result(s)\n4. You write your next command(s)\n\nEach response should include:\n\n1. **Reasoning text** where you explain your analysis and plan\n2. At least one tool call with your command\n\n**CRITICAL REQUIREMENTS:**\n\n- Your response SHOULD include reasoning text explaining what you're doing\n- Your response MUST include AT LEAST ONE bash tool call. You can make MULTIPLE tool calls in a single response when the commands are independent (e.g., searching multiple files, reading different parts of the codebase).\n- Directory or environment variable changes are not persistent. Every action is executed in a new subshell.\n- However, you can prefix any action with `MY_ENV_VAR=MY_VALUE cd /path/to/working/dir && ...` or write/load environment variables from files\n\nExample of a CORRECT response:\n<example_response>\nI need to understand the Builder-related code. Let me find relevant files and check the project structure.\n\n[Makes multiple bash tool calls: {\"command\": \"ls -la\"}, {\"command\": \"find src -name '*.java' | grep -i builder\"}, {\"command\": \"cat README.md | head -50\"}]\n</example_response>\n\n## Environment Details\n\n- You have a full Linux shell environment\n- Always use non-interactive flags (-y, -f) for commands\n- Avoid interactive tools like vi, nano, or any that require user input\n- You can use bash commands or invoke any tool that is available in the environment\n- You can also create new tools or scripts to help you with the task\n- If a tool isn't available, you can also install it\n\n## Submission\n\nWhen you've completed your work, you MUST submit your changes as a git patch.\nFollow these steps IN ORDER, with SEPARATE commands:\n\nStep 1: Create the patch file\nRun `git diff -- path/to/file1 path/to/file2 > patch.txt` listing only the source files you modified.\nDo NOT commit your changes.\n\n<IMPORTANT>\nThe patch must only contain changes to the specific source files you modified to fix the issue.\nDo not submit file creations or changes to any of the following files:\n\n- test and reproduction files\n- helper scripts, tests, or tools that you created\n- installation, build, packaging, configuration, or setup scripts unless they are directly part of the issue you were fixing (you can assume that the environment is already set up for your client)\n- binary or compiled files\n</IMPORTANT>\n\nStep 2: Verify your patch\nInspect patch.txt to confirm it only contains your intended changes and headers show `--- a/` and `+++ b/` paths.\n\nStep 3: Submit (EXACT command required)\nYou MUST use this EXACT command to submit:\n\n```bash\necho COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT && cat patch.txt\n```\n\nIf the command fails (nonzero exit status), it will not submit.\n\n<CRITICAL>\n- Creating/viewing the patch and submitting it MUST be separate commands (not combined with &&).\n- If you modify patch.txt after verifying, you SHOULD verify again before submitting.\n- You CANNOT continue working (reading, editing, testing) in any way on this task after submitting.\n</CRITICAL>\n</instructions>"
+    },
+    {
+      "content": "",
+      "role": "assistant",
+      "tool_calls": [
+        {
+          "index": 0,
+          "function": {
+            "arguments": "{\"command\": \"find /testbed -type f -name \\\"*.py\\\" | xargs grep -l \\\"ManagementUtility\\\" 2>/dev/null | head -20\"}",
+            "name": "bash"
+          },
+          "id": "call_00_RwrMrjAka9YmYDk7hbaw5537",
+          "type": "function"
+        }
+      ],
+      "function_call": null,
+      "reasoning_content": "Let me analyze the PR description. The issue is about `ManagementUtility` in Django's management commands. It parses `prog_name` from `self.argv[0]` (which could be different from `sys.argv[0]`), but when it creates a `CommandParser`, it doesn't pass `prog=self.prog_name`, so `%(prog)s` in the usage string falls back to `sys.argv[0]`.\n\nLet me find the relevant file and fix it.",
+      "provider_specific_fields": {
+        "reasoning_content": "Let me analyze the PR description. The issue is about `ManagementUtility` in Django's management commands. It parses `prog_name` from `self.argv[0]` (which could be different from `sys.argv[0]`), but when it creates a `CommandParser`, it doesn't pass `prog=self.prog_name`, so `%(prog)s` in the usage string falls back to `sys.argv[0]`.\n\nLet me find the relevant file and fix it."
+      },
+      "extra": {
+        "actions": [
+          {
+            "command": "find /testbed -type f -name \"*.py\" | xargs grep -l \"ManagementUtility\" 2>/dev/null | head -20",
+            "tool_call_id": "call_00_RwrMrjAka9YmYDk7hbaw5537"
+          }
+        ],
+        "response": {
+          "id": "195ca889-0613-4ce1-82c9-92a1aef995e6",
+          "created": 1782317875,
+          "model": "deepseek-v4-flash",
+          "object": "chat.completion",
+          "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402",
+          "choices": [
+            {
+              "finish_reason": "tool_calls",
+              "index": 0,
+              "message": {
+                "content": "",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "index": 0,
+                    "function": {
+                      "arguments": "{\"command\": \"find /testbed -type f -name \\\"*.py\\\" | xargs grep -l \\\"ManagementUtility\\\" 2>/dev/null | head -20\"}",
+                      "name": "bash"
+                    },
+                    "id": "call_00_RwrMrjAka9YmYDk7hbaw5537",
+                    "type": "function"
+                  }
+                ],
+                "function_call": null,
+                "reasoning_content": "Let me analyze the PR description. The issue is about `ManagementUtility` in Django's management commands. It parses `prog_name` from `self.argv[0]` (which could be different from `sys.argv[0]`), but when it creates a `CommandParser`, it doesn't pass `prog=self.prog_name`, so `%(prog)s` in the usage string falls back to `sys.argv[0]`.\n\nLet me find the relevant file and fix it.",
+                "provider_specific_fields": {
+                  "reasoning_content": "Let me analyze the PR description. The issue is about `ManagementUtility` in Django's management commands. It parses `prog_name` from `self.argv[0]` (which could be different from `sys.argv[0]`), but when it creates a `CommandParser`, it doesn't pass `prog=self.prog_name`, so `%(prog)s` in the usage string falls back to `sys.argv[0]`.\n\nLet me find the relevant file and fix it."
+                }
+              },
+              "provider_specific_fields": {}
+            }
+          ],
+          "usage": {
+            "completion_tokens": 177,
+            "prompt_tokens": 1997,
+            "total_tokens": 2174,
+            "completion_tokens_details": {
+              "reasoning_tokens": 103
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 640
+            },
+            "prompt_cache_hit_tokens": 640,
+            "prompt_cache_miss_tokens": 1357
+          }
+        },
+        "cost": 0.00024133200000000003,
+        "timestamp": 1782317877.884174
+      }
+    },
+    {
+      "content": "<returncode>0</returncode>\n<output>\n/testbed/django/core/management/__init__.py\n/testbed/django/core/management/base.py\n/testbed/django/core/management/commands/runserver.py\n/testbed/tests/bash_completion/tests.py\n/testbed/tests/user_commands/tests.py\n</output>",
+      "extra": {
+        "raw_output": "/testbed/django/core/management/__init__.py\n/testbed/django/core/management/base.py\n/testbed/django/core/management/commands/runserver.py\n/testbed/tests/bash_completion/tests.py\n/testbed/tests/user_commands/tests.py\n",
+        "returncode": 0,
+        "timestamp": 1782317878.421669,
+        "exception_info": ""
+      },
+      "tool_call_id": "call_00_RwrMrjAka9YmYDk7hbaw5537",
+      "role": "tool"
+    },
+    {
+      "content": "",
+      "role": "assistant",
+      "tool_calls": [
+        {
+          "index": 0,
+          "function": {
+            "arguments": "{\"command\": \"cd /testbed && grep -n \\\"ManagementUtility\\\\|CommandParser\\\\|prog_name\\\\|prog=\\\" django/core/management/__init__.py\"}",
+            "name": "bash"
+          },
+          "id": "call_00_DMZVdE87ctggA423Q3cu7078",
+          "type": "function"
+        }
+      ],
+      "function_call": null,
+      "reasoning_content": "Let me look at the `ManagementUtility` class in `/testbed/django/core/management/__init__.py`.",
+      "provider_specific_fields": {
+        "reasoning_content": "Let me look at the `ManagementUtility` class in `/testbed/django/core/management/__init__.py`."
+      },
+      "extra": {
+        "actions": [
+          {
+            "command": "cd /testbed && grep -n \"ManagementUtility\\|CommandParser\\|prog_name\\|prog=\" django/core/management/__init__.py",
+            "tool_call_id": "call_00_DMZVdE87ctggA423Q3cu7078"
+          }
+        ],
+        "response": {
+          "id": "943ca492-315e-48ec-9a90-10ad46e10e24",
+          "created": 1782317878,
+          "model": "deepseek-v4-flash",
+          "object": "chat.completion",
+          "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402",
+          "choices": [
+            {
+              "finish_reason": "tool_calls",
+              "index": 0,
+              "message": {
+                "content": "",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "index": 0,
+                    "function": {
+                      "arguments": "{\"command\": \"cd /testbed && grep -n \\\"ManagementUtility\\\\|CommandParser\\\\|prog_name\\\\|prog=\\\" django/core/management/__init__.py\"}",
+                      "name": "bash"
+                    },
+                    "id": "call_00_DMZVdE87ctggA423Q3cu7078",
+                    "type": "function"
+                  }
+                ],
+                "function_call": null,
+                "reasoning_content": "Let me look at the `ManagementUtility` class in `/testbed/django/core/management/__init__.py`.",
+                "provider_specific_fields": {
+                  "reasoning_content": "Let me look at the `ManagementUtility` class in `/testbed/django/core/management/__init__.py`."
+                }
+              },
+              "provider_specific_fields": {}
+            }
+          ],
+          "usage": {
+            "completion_tokens": 98,
+            "prompt_tokens": 2258,
+            "total_tokens": 2356,
+            "completion_tokens_details": {
+              "reasoning_tokens": 25
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 2048
+            },
+            "prompt_cache_hit_tokens": 2048,
+            "prompt_cache_miss_tokens": 210
+          }
+        },
+        "cost": 6.25744e-05,
+        "timestamp": 1782317879.873009
+      }
+    },
+    {
+      "content": "<returncode>0</returncode>\n<output>\n11 matches in 1 files:\n\ndjango/core/management/__init__.py:17:BaseCommand, CommandError, CommandParser, handle_default_options,\ndjango/core/management/__init__.py:184:class ManagementUtility:\ndjango/core/management/__init__.py:190:self.prog_name = os.path.basename(self.argv[0])\ndjango/core/management/__init__.py:191:if self.prog_name == '__main__.py':\ndjango/core/management/__init__.py:192:self.prog_name = 'python -m django'\ndjango/core/management/__init__.py:202:\"Type '%s help <subcommand>' for help on a specific subcommand.\" % self.prog_...\ndjango/core/management/__init__.py:251:sys.stderr.write(\"\\nType '%s help' for usage.\\n\" % self.prog_name)\ndjango/core/management/__init__.py:347:parser = CommandParser(usage='%(prog)s subcommand [options] [args]', add_help...\ndjango/core/management/__init__.py:400:self.fetch_command(options.args[0]).print_help(self.prog_name, options.args[0])\ndjango/core/management/__init__.py:412:\"\"\"Run a ManagementUtility.\"\"\"\ndjango/core/management/__init__.py:413:utility = ManagementUtility(argv)\n</output>",
+      "extra": {
+        "raw_output": "11 matches in 1 files:\n\ndjango/core/management/__init__.py:17:BaseCommand, CommandError, CommandParser, handle_default_options,\ndjango/core/management/__init__.py:184:class ManagementUtility:\ndjango/core/management/__init__.py:190:self.prog_name = os.path.basename(self.argv[0])\ndjango/core/management/__init__.py:191:if self.prog_name == '__main__.py':\ndjango/core/management/__init__.py:192:self.prog_name = 'python -m django'\ndjango/core/management/__init__.py:202:\"Type '%s help <subcommand>' for help on a specific subcommand.\" % self.prog_...\ndjango/core/management/__init__.py:251:sys.stderr.write(\"\\nType '%s help' for usage.\\n\" % self.prog_name)\ndjango/core/management/__init__.py:347:parser = CommandParser(usage='%(prog)s subcommand [options] [args]', add_help...\ndjango/core/management/__init__.py:400:self.fetch_command(options.args[0]).print_help(self.prog_name, options.args[0])\ndjango/core/management/__init__.py:412:\"\"\"Run a ManagementUtility.\"\"\"\ndjango/core/management/__init__.py:413:utility = ManagementUtility(argv)\n",
+        "returncode": 0,
+        "timestamp": 1782317880.4233658,
+        "exception_info": ""
+      },
+      "tool_call_id": "call_00_DMZVdE87ctggA423Q3cu7078",
+      "role": "tool"
+    },
+    {
+      "content": "",
+      "role": "assistant",
+      "tool_calls": [
+        {
+          "index": 0,
+          "function": {
+            "arguments": "{\"command\": \"cd /testbed && sed -n '340,360p' django/core/management/__init__.py\"}",
+            "name": "bash"
+          },
+          "id": "call_00_qMWcMH4VhN2yaULlP7qT7234",
+          "type": "function"
+        }
+      ],
+      "function_call": null,
+      "reasoning_content": "Let me see the relevant section around line 347 where the CommandParser is instantiated.",
+      "provider_specific_fields": {
+        "reasoning_content": "Let me see the relevant section around line 347 where the CommandParser is instantiated."
+      },
+      "extra": {
+        "actions": [
+          {
+            "command": "cd /testbed && sed -n '340,360p' django/core/management/__init__.py",
+            "tool_call_id": "call_00_qMWcMH4VhN2yaULlP7qT7234"
+          }
+        ],
+        "response": {
+          "id": "422a7154-0d4c-454b-a1f7-3c4102a14e42",
+          "created": 1782317880,
+          "model": "deepseek-v4-flash",
+          "object": "chat.completion",
+          "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402",
+          "choices": [
+            {
+              "finish_reason": "tool_calls",
+              "index": 0,
+              "message": {
+                "content": "",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "index": 0,
+                    "function": {
+                      "arguments": "{\"command\": \"cd /testbed && sed -n '340,360p' django/core/management/__init__.py\"}",
+                      "name": "bash"
+                    },
+                    "id": "call_00_qMWcMH4VhN2yaULlP7qT7234",
+                    "type": "function"
+                  }
+                ],
+                "function_call": null,
+                "reasoning_content": "Let me see the relevant section around line 347 where the CommandParser is instantiated.",
+                "provider_specific_fields": {
+                  "reasoning_content": "Let me see the relevant section around line 347 where the CommandParser is instantiated."
+                }
+              },
+              "provider_specific_fields": {}
+            }
+          ],
+          "usage": {
+            "completion_tokens": 83,
+            "prompt_tokens": 2683,
+            "total_tokens": 2766,
+            "completion_tokens_details": {
+              "reasoning_tokens": 18
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 2304
+            },
+            "prompt_cache_hit_tokens": 2304,
+            "prompt_cache_miss_tokens": 379
+          }
+        },
+        "cost": 8.275120000000001e-05,
+        "timestamp": 1782317881.7570078
+      }
+    },
+    {
+      "content": "<returncode>0</returncode>\n<output>\n            subcommand = self.argv[1]\n        except IndexError:\n            subcommand = 'help'  # Display help if no arguments were given.\n\n        # Preprocess options to extract --settings and --pythonpath.\n        # These options could affect the commands that are available, so they\n        # must be processed early.\n        parser = CommandParser(usage='%(prog)s subcommand [options] [args]', add_help=False, allow_abbrev=False)\n        parser.add_argument('--settings')\n        parser.add_argument('--pythonpath')\n        parser.add_argument('args', nargs='*')  # catch-all\n        try:\n            options, args = parser.parse_known_args(self.argv[2:])\n            handle_default_options(options)\n        except CommandError:\n            pass  # Ignore any option errors at this point.\n\n        try:\n            settings.INSTALLED_APPS\n        except ImproperlyConfigured as exc:\n            self.settings_exception = exc\n</output>",
+      "extra": {
+        "raw_output": "            subcommand = self.argv[1]\n        except IndexError:\n            subcommand = 'help'  # Display help if no arguments were given.\n\n        # Preprocess options to extract --settings and --pythonpath.\n        # These options could affect the commands that are available, so they\n        # must be processed early.\n        parser = CommandParser(usage='%(prog)s subcommand [options] [args]', add_help=False, allow_abbrev=False)\n        parser.add_argument('--settings')\n        parser.add_argument('--pythonpath')\n        parser.add_argument('args', nargs='*')  # catch-all\n        try:\n            options, args = parser.parse_known_args(self.argv[2:])\n            handle_default_options(options)\n        except CommandError:\n            pass  # Ignore any option errors at this point.\n\n        try:\n            settings.INSTALLED_APPS\n        except ImproperlyConfigured as exc:\n            self.settings_exception = exc\n",
+        "returncode": 0,
+        "timestamp": 1782317882.1629288,
+        "exception_info": ""
+      },
+      "tool_call_id": "call_00_qMWcMH4VhN2yaULlP7qT7234",
+      "role": "tool"
+    },
+    {
+      "content": "Now I can see the exact issue. The `CommandParser` on line 347 needs `prog=self.prog_name`. Let me apply the fix.",
+      "role": "assistant",
+      "tool_calls": [
+        {
+          "index": 0,
+          "function": {
+            "arguments": "{\"command\": \"cd /testbed && sed -i 's/parser = CommandParser(usage=.%(prog)s subcommand \\\\[options\\\\] \\\\[args\\\\]., add_help=False, allow_abbrev=False)/parser = CommandParser(\\\\n            prog=self.prog_name,\\\\n            usage=\\\"%(prog)s subcommand [options] [args]\\\",\\\\n            add_help=False,\\\\n            allow_abbrev=False)/' django/core/management/__init__.py\"}",
+            "name": "bash"
+          },
+          "id": "call_00_Fi5LwxrASY1Wa7YDaHTn3402",
+          "type": "function"
+        }
+      ],
+      "function_call": null,
+      "reasoning_content": "Now I can see the issue clearly. On line 347, `CommandParser` is instantiated without passing `prog=self.prog_name`. The fix is to add `prog=self.prog_name` to the `CommandParser` call.",
+      "provider_specific_fields": {
+        "reasoning_content": "Now I can see the issue clearly. On line 347, `CommandParser` is instantiated without passing `prog=self.prog_name`. The fix is to add `prog=self.prog_name` to the `CommandParser` call."
+      },
+      "extra": {
+        "actions": [
+          {
+            "command": "cd /testbed && sed -i 's/parser = CommandParser(usage=.%(prog)s subcommand \\[options\\] \\[args\\]., add_help=False, allow_abbrev=False)/parser = CommandParser(\\n            prog=self.prog_name,\\n            usage=\"%(prog)s subcommand [options] [args]\",\\n            add_help=False,\\n            allow_abbrev=False)/' django/core/management/__init__.py",
+            "tool_call_id": "call_00_Fi5LwxrASY1Wa7YDaHTn3402"
+          }
+        ],
+        "response": {
+          "id": "5d0eb81a-8017-40cc-9d40-fc02056b8e6d",
+          "created": 1782317882,
+          "model": "deepseek-v4-flash",
+          "object": "chat.completion",
+          "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402",
+          "choices": [
+            {
+              "finish_reason": "tool_calls",
+              "index": 0,
+              "message": {
+                "content": "Now I can see the exact issue. The `CommandParser` on line 347 needs `prog=self.prog_name`. Let me apply the fix.",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "index": 0,
+                    "function": {
+                      "arguments": "{\"command\": \"cd /testbed && sed -i 's/parser = CommandParser(usage=.%(prog)s subcommand \\\\[options\\\\] \\\\[args\\\\]., add_help=False, allow_abbrev=False)/parser = CommandParser(\\\\n            prog=self.prog_name,\\\\n            usage=\\\"%(prog)s subcommand [options] [args]\\\",\\\\n            add_help=False,\\\\n            allow_abbrev=False)/' django/core/management/__init__.py\"}",
+                      "name": "bash"
+                    },
+                    "id": "call_00_Fi5LwxrASY1Wa7YDaHTn3402",
+                    "type": "function"
+                  }
+                ],
+                "function_call": null,
+                "reasoning_content": "Now I can see the issue clearly. On line 347, `CommandParser` is instantiated without passing `prog=self.prog_name`. The fix is to add `prog=self.prog_name` to the `CommandParser` call.",
+                "provider_specific_fields": {
+                  "reasoning_content": "Now I can see the issue clearly. On line 347, `CommandParser` is instantiated without passing `prog=self.prog_name`. The fix is to add `prog=self.prog_name` to the `CommandParser` call."
+                }
+              },
+              "provider_specific_fields": {}
+            }
+          ],
+          "usage": {
+            "completion_tokens": 223,
+            "prompt_tokens": 3000,
+            "total_tokens": 3223,
+            "completion_tokens_details": {
+              "reasoning_tokens": 51
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 2688
+            },
+            "prompt_cache_hit_tokens": 2688,
+            "prompt_cache_miss_tokens": 312
+          }
+        },
+        "cost": 0.0001136464,
+        "timestamp": 1782317884.699075
+      }
+    },
+    {
+      "content": "<returncode>0</returncode>\n<output>\n</output>",
+      "extra": {
+        "raw_output": "",
+        "returncode": 0,
+        "timestamp": 1782317885.1047082,
+        "exception_info": ""
+      },
+      "tool_call_id": "call_00_Fi5LwxrASY1Wa7YDaHTn3402",
+      "role": "tool"
+    },
+    {
+      "content": "",
+      "role": "assistant",
+      "tool_calls": [
+        {
+          "index": 0,
+          "function": {
+            "arguments": "{\"command\": \"cd /testbed && sed -n '345,352p' django/core/management/__init__.py\"}",
+            "name": "bash"
+          },
+          "id": "call_00_SHXOf5H1rR9lGTrma7kV6176",
+          "type": "function"
+        }
+      ],
+      "function_call": null,
+      "reasoning_content": "Let me verify the change looks correct.",
+      "provider_specific_fields": {
+        "reasoning_content": "Let me verify the change looks correct."
+      },
+      "extra": {
+        "actions": [
+          {
+            "command": "cd /testbed && sed -n '345,352p' django/core/management/__init__.py",
+            "tool_call_id": "call_00_SHXOf5H1rR9lGTrma7kV6176"
+          }
+        ],
+        "response": {
+          "id": "6b418ded-477d-4240-bab7-0cf6db928970",
+          "created": 1782317885,
+          "model": "deepseek-v4-flash",
+          "object": "chat.completion",
+          "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402",
+          "choices": [
+            {
+              "finish_reason": "tool_calls",
+              "index": 0,
+              "message": {
+                "content": "",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "index": 0,
+                    "function": {
+                      "arguments": "{\"command\": \"cd /testbed && sed -n '345,352p' django/core/management/__init__.py\"}",
+                      "name": "bash"
+                    },
+                    "id": "call_00_SHXOf5H1rR9lGTrma7kV6176",
+                    "type": "function"
+                  }
+                ],
+                "function_call": null,
+                "reasoning_content": "Let me verify the change looks correct.",
+                "provider_specific_fields": {
+                  "reasoning_content": "Let me verify the change looks correct."
+                }
+              },
+              "provider_specific_fields": {}
+            }
+          ],
+          "usage": {
+            "completion_tokens": 73,
+            "prompt_tokens": 3248,
+            "total_tokens": 3321,
+            "completion_tokens_details": {
+              "reasoning_tokens": 8
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 3200
+            },
+            "prompt_cache_hit_tokens": 3200,
+            "prompt_cache_miss_tokens": 48
+          }
+        },
+        "cost": 3.612e-05,
+        "timestamp": 1782317886.631138
+      }
+    },
+    {
+      "content": "<returncode>0</returncode>\n<output>\n        # These options could affect the commands that are available, so they\n        # must be processed early.\n        parser = CommandParser(\n            prog=self.prog_name,\n            usage=\"%(prog)s subcommand [options] [args]\",\n            add_help=False,\n            allow_abbrev=False)\n        parser.add_argument('--settings')\n</output>",
+      "extra": {
+        "raw_output": "        # These options could affect the commands that are available, so they\n        # must be processed early.\n        parser = CommandParser(\n            prog=self.prog_name,\n            usage=\"%(prog)s subcommand [options] [args]\",\n            add_help=False,\n            allow_abbrev=False)\n        parser.add_argument('--settings')\n",
+        "returncode": 0,
+        "timestamp": 1782317887.035316,
+        "exception_info": ""
+      },
+      "tool_call_id": "call_00_SHXOf5H1rR9lGTrma7kV6176",
+      "role": "tool"
+    },
+    {
+      "content": "Good, the fix is in place. Let me verify the fix works by creating a quick reproduction script.",
+      "role": "assistant",
+      "tool_calls": [
+        {
+          "index": 0,
+          "function": {
+            "arguments": "{\"command\": \"cd /testbed && python -c \\\"\\nimport os\\nimport sys\\n\\n# Simulate the issue: sys.argv[0] is None\\nold_argv = sys.argv\\nsys.argv = [None, 'help']\\n\\nfrom django.core.management import ManagementUtility\\ntry:\\n    utility = ManagementUtility(argv=['django-admin', 'help'])\\n    utility.execute()\\n    print('SUCCESS: No exception raised')\\nexcept Exception as e:\\n    print(f'FAILURE: {type(e).__name__}: {e}')\\nfinally:\\n    sys.argv = old_argv\\n\\\"\"}",
+            "name": "bash"
+          },
+          "id": "call_00_mq2yxiN2CKg4bIkV07dK7005",
+          "type": "function"
+        }
+      ],
+      "function_call": null,
+      "reasoning_content": "The change looks good. Let me now verify it by looking at the whole area to ensure proper formatting, and also write a quick test to confirm it works.",
+      "provider_specific_fields": {
+        "reasoning_content": "The change looks good. Let me now verify it by looking at the whole area to ensure proper formatting, and also write a quick test to confirm it works."
+      },
+      "extra": {
+        "actions": [
+          {
+            "command": "cd /testbed && python -c \"\nimport os\nimport sys\n\n# Simulate the issue: sys.argv[0] is None\nold_argv = sys.argv\nsys.argv = [None, 'help']\n\nfrom django.core.management import ManagementUtility\ntry:\n    utility = ManagementUtility(argv=['django-admin', 'help'])\n    utility.execute()\n    print('SUCCESS: No exception raised')\nexcept Exception as e:\n    print(f'FAILURE: {type(e).__name__}: {e}')\nfinally:\n    sys.argv = old_argv\n\"",
+            "tool_call_id": "call_00_mq2yxiN2CKg4bIkV07dK7005"
+          }
+        ],
+        "response": {
+          "id": "cc75c74b-5016-4aee-b0ad-96a6f3518190",
+          "created": 1782317887,
+          "model": "deepseek-v4-flash",
+          "object": "chat.completion",
+          "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402",
+          "choices": [
+            {
+              "finish_reason": "tool_calls",
+              "index": 0,
+              "message": {
+                "content": "Good, the fix is in place. Let me verify the fix works by creating a quick reproduction script.",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "index": 0,
+                    "function": {
+                      "arguments": "{\"command\": \"cd /testbed && python -c \\\"\\nimport os\\nimport sys\\n\\n# Simulate the issue: sys.argv[0] is None\\nold_argv = sys.argv\\nsys.argv = [None, 'help']\\n\\nfrom django.core.management import ManagementUtility\\ntry:\\n    utility = ManagementUtility(argv=['django-admin', 'help'])\\n    utility.execute()\\n    print('SUCCESS: No exception raised')\\nexcept Exception as e:\\n    print(f'FAILURE: {type(e).__name__}: {e}')\\nfinally:\\n    sys.argv = old_argv\\n\\\"\"}",
+                      "name": "bash"
+                    },
+                    "id": "call_00_mq2yxiN2CKg4bIkV07dK7005",
+                    "type": "function"
+                  }
+                ],
+                "function_call": null,
+                "reasoning_content": "The change looks good. Let me now verify it by looking at the whole area to ensure proper formatting, and also write a quick test to confirm it works.",
+                "provider_specific_fields": {
+                  "reasoning_content": "The change looks good. Let me now verify it by looking at the whole area to ensure proper formatting, and also write a quick test to confirm it works."
+                }
+              },
+              "provider_specific_fields": {}
+            }
+          ],
+          "usage": {
+            "completion_tokens": 212,
+            "prompt_tokens": 3419,
+            "total_tokens": 3631,
+            "completion_tokens_details": {
+              "reasoning_tokens": 32
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 3200
+            },
+            "prompt_cache_hit_tokens": 3200,
+            "prompt_cache_miss_tokens": 219
+          }
+        },
+        "cost": 9.898e-05,
+        "timestamp": 1782317889.778372
+      }
+    },
+    {
+      "content": "<returncode>0</returncode>\n<output>\n\nType 'django-admin help <subcommand>' for help on a specific subcommand.\n\nAvailable subcommands:\n\n[django]\n    check\n    compilemessages\n    createcachetable\n    dbshell\n    diffsettings\n    dumpdata\n    flush\n    inspectdb\n    loaddata\n    makemessages\n    makemigrations\n    migrate\n    runserver\n    sendtestemail\n    shell\n    showmigrations\n    sqlflush\n    sqlmigrate\n    sqlsequencereset\n    squashmigrations\n    startapp\n    startproject\n    test\n    testserver\nNote that only Django core commands are listed as settings are not properly configured (error: Requested setting INSTALLED_APPS, but settings are not configured. You must either define the environment variable DJANGO_SETTINGS_MODULE or call settings.configure() before accessing settings.).\nSUCCESS: No exception raised\n</output>",
+      "extra": {
+        "raw_output": "\nType 'django-admin help <subcommand>' for help on a specific subcommand.\n\nAvailable subcommands:\n\n[django]\n    check\n    compilemessages\n    createcachetable\n    dbshell\n    diffsettings\n    dumpdata\n    flush\n    inspectdb\n    loaddata\n    makemessages\n    makemigrations\n    migrate\n    runserver\n    sendtestemail\n    shell\n    showmigrations\n    sqlflush\n    sqlmigrate\n    sqlsequencereset\n    squashmigrations\n    startapp\n    startproject\n    test\n    testserver\nNote that only Django core commands are listed as settings are not properly configured (error: Requested setting INSTALLED_APPS, but settings are not configured. You must either define the environment variable DJANGO_SETTINGS_MODULE or call settings.configure() before accessing settings.).\nSUCCESS: No exception raised\n",
+        "returncode": 0,
+        "timestamp": 1782317890.42023,
+        "exception_info": ""
+      },
+      "tool_call_id": "call_00_mq2yxiN2CKg4bIkV07dK7005",
+      "role": "tool"
+    },
+    {
+      "content": "Let me also run the existing tests related to management commands to make sure nothing is broken.",
+      "role": "assistant",
+      "tool_calls": [
+        {
+          "index": 0,
+          "function": {
+            "arguments": "{\"command\": \"cd /testbed && python -m pytest tests/user_commands/tests.py -x -q 2>&1 | tail -20\"}",
+            "name": "bash"
+          },
+          "id": "call_00_3nsPL1hkDcxuFovoKzLZ4663",
+          "type": "function"
+        }
+      ],
+      "function_call": null,
+      "reasoning_content": "The fix works. The `prog_name` is correctly set to 'django-admin' (from the passed argv) instead of being None (from sys.argv[0]).\n\nLet me also run the existing tests to make sure we haven't broken anything.",
+      "provider_specific_fields": {
+        "reasoning_content": "The fix works. The `prog_name` is correctly set to 'django-admin' (from the passed argv) instead of being None (from sys.argv[0]).\n\nLet me also run the existing tests to make sure we haven't broken anything."
+      },
+      "extra": {
+        "actions": [
+          {
+            "command": "cd /testbed && python -m pytest tests/user_commands/tests.py -x -q 2>&1 | tail -20",
+            "tool_call_id": "call_00_3nsPL1hkDcxuFovoKzLZ4663"
+          }
+        ],
+        "response": {
+          "id": "8410b407-86f6-4893-906e-5f1679f2cdbf",
+          "created": 1782317891,
+          "model": "deepseek-v4-flash",
+          "object": "chat.completion",
+          "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402",
+          "choices": [
+            {
+              "finish_reason": "tool_calls",
+              "index": 0,
+              "message": {
+                "content": "Let me also run the existing tests related to management commands to make sure nothing is broken.",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "index": 0,
+                    "function": {
+                      "arguments": "{\"command\": \"cd /testbed && python -m pytest tests/user_commands/tests.py -x -q 2>&1 | tail -20\"}",
+                      "name": "bash"
+                    },
+                    "id": "call_00_3nsPL1hkDcxuFovoKzLZ4663",
+                    "type": "function"
+                  }
+                ],
+                "function_call": null,
+                "reasoning_content": "The fix works. The `prog_name` is correctly set to 'django-admin' (from the passed argv) instead of being None (from sys.argv[0]).\n\nLet me also run the existing tests to make sure we haven't broken anything.",
+                "provider_specific_fields": {
+                  "reasoning_content": "The fix works. The `prog_name` is correctly set to 'django-admin' (from the passed argv) instead of being None (from sys.argv[0]).\n\nLet me also run the existing tests to make sure we haven't broken anything."
+                }
+              },
+              "provider_specific_fields": {}
+            }
+          ],
+          "usage": {
+            "completion_tokens": 139,
+            "prompt_tokens": 3848,
+            "total_tokens": 3987,
+            "completion_tokens_details": {
+              "reasoning_tokens": 52
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 3584
+            },
+            "prompt_cache_hit_tokens": 3584,
+            "prompt_cache_miss_tokens": 264
+          }
+        },
+        "cost": 8.591520000000001e-05,
+        "timestamp": 1782317893.389786
+      }
+    },
+    {
+      "content": "<returncode>0</returncode>\n<output>\nPytest: No tests collected\n</output>",
+      "extra": {
+        "raw_output": "Pytest: No tests collected\n",
+        "returncode": 0,
+        "timestamp": 1782317893.948847,
+        "exception_info": ""
+      },
+      "tool_call_id": "call_00_3nsPL1hkDcxuFovoKzLZ4663",
+      "role": "tool"
+    },
+    {
+      "content": "",
+      "role": "assistant",
+      "tool_calls": [
+        {
+          "index": 0,
+          "function": {
+            "arguments": "{\"command\": \"cd /testbed && RTK_DISABLED=1 python -m pytest tests/user_commands/tests.py -x -q 2>&1 | tail -20\"}",
+            "name": "bash"
+          },
+          "id": "call_00_hezEQIAPBbVZFe8wkshm4327",
+          "type": "function"
+        }
+      ],
+      "function_call": null,
+      "reasoning_content": "The RTK wrapper may be interfering. Let me try with `RTK_DISABLED=1`.",
+      "provider_specific_fields": {
+        "reasoning_content": "The RTK wrapper may be interfering. Let me try with `RTK_DISABLED=1`."
+      },
+      "extra": {
+        "actions": [
+          {
+            "command": "cd /testbed && RTK_DISABLED=1 python -m pytest tests/user_commands/tests.py -x -q 2>&1 | tail -20",
+            "tool_call_id": "call_00_hezEQIAPBbVZFe8wkshm4327"
+          }
+        ],
+        "response": {
+          "id": "2774cb30-7100-4126-b5ae-392a9bb502e8",
+          "created": 1782317894,
+          "model": "deepseek-v4-flash",
+          "object": "chat.completion",
+          "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402",
+          "choices": [
+            {
+              "finish_reason": "tool_calls",
+              "index": 0,
+              "message": {
+                "content": "",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "index": 0,
+                    "function": {
+                      "arguments": "{\"command\": \"cd /testbed && RTK_DISABLED=1 python -m pytest tests/user_commands/tests.py -x -q 2>&1 | tail -20\"}",
+                      "name": "bash"
+                    },
+                    "id": "call_00_hezEQIAPBbVZFe8wkshm4327",
+                    "type": "function"
+                  }
+                ],
+                "function_call": null,
+                "reasoning_content": "The RTK wrapper may be interfering. Let me try with `RTK_DISABLED=1`.",
+                "provider_specific_fields": {
+                  "reasoning_content": "The RTK wrapper may be interfering. Let me try with `RTK_DISABLED=1`."
+                }
+              },
+              "provider_specific_fields": {}
+            }
+          ],
+          "usage": {
+            "completion_tokens": 100,
+            "prompt_tokens": 4019,
+            "total_tokens": 4119,
+            "completion_tokens_details": {
+              "reasoning_tokens": 22
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 3968
+            },
+            "prompt_cache_hit_tokens": 3968,
+            "prompt_cache_miss_tokens": 51
+          }
+        },
+        "cost": 4.62504e-05,
+        "timestamp": 1782317895.706517
+      }
+    },
+    {
+      "content": "<returncode>0</returncode>\n<output>\n/opt/miniconda3/envs/testbed/bin/python: No module named pytest\n</output>",
+      "extra": {
+        "raw_output": "/opt/miniconda3/envs/testbed/bin/python: No module named pytest\n",
+        "returncode": 0,
+        "timestamp": 1782317896.173774,
+        "exception_info": ""
+      },
+      "tool_call_id": "call_00_hezEQIAPBbVZFe8wkshm4327",
+      "role": "tool"
+    },
+    {
+      "content": "",
+      "role": "assistant",
+      "tool_calls": [
+        {
+          "index": 0,
+          "function": {
+            "arguments": "{\"command\": \"cd /testbed && python tests/runtests.py user_commands 2>&1 | tail -20\"}",
+            "name": "bash"
+          },
+          "id": "call_00_hFb16tF5kY8lBsUhC3Pd1925",
+          "type": "function"
+        }
+      ],
+      "function_call": null,
+      "reasoning_content": "Let me try with `python -m django test` or just check the test runner.",
+      "provider_specific_fields": {
+        "reasoning_content": "Let me try with `python -m django test` or just check the test runner."
+      },
+      "extra": {
+        "actions": [
+          {
+            "command": "cd /testbed && python tests/runtests.py user_commands 2>&1 | tail -20",
+            "tool_call_id": "call_00_hFb16tF5kY8lBsUhC3Pd1925"
+          }
+        ],
+        "response": {
+          "id": "0a023778-0a5e-4bfd-8d6a-a67ae61c5bcb",
+          "created": 1782317896,
+          "model": "deepseek-v4-flash",
+          "object": "chat.completion",
+          "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402",
+          "choices": [
+            {
+              "finish_reason": "tool_calls",
+              "index": 0,
+              "message": {
+                "content": "",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "index": 0,
+                    "function": {
+                      "arguments": "{\"command\": \"cd /testbed && python tests/runtests.py user_commands 2>&1 | tail -20\"}",
+                      "name": "bash"
+                    },
+                    "id": "call_00_hFb16tF5kY8lBsUhC3Pd1925",
+                    "type": "function"
+                  }
+                ],
+                "function_call": null,
+                "reasoning_content": "Let me try with `python -m django test` or just check the test runner.",
+                "provider_specific_fields": {
+                  "reasoning_content": "Let me try with `python -m django test` or just check the test runner."
+                }
+              },
+              "provider_specific_fields": {}
+            }
+          ],
+          "usage": {
+            "completion_tokens": 82,
+            "prompt_tokens": 4162,
+            "total_tokens": 4244,
+            "completion_tokens_details": {
+              "reasoning_tokens": 18
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 4096
+            },
+            "prompt_cache_hit_tokens": 4096,
+            "prompt_cache_miss_tokens": 66
+          }
+        },
+        "cost": 4.3668800000000004e-05,
+        "timestamp": 1782317897.80972
+      }
+    },
+    {
+      "content": "<returncode>0</returncode>\n<output>\nTesting against Django installed in '/testbed/django' with up to 8 processes\nSystem check identified no issues (0 silenced).\n.............................................\n----------------------------------------------------------------------\nRan 45 tests in 1.006s\n\nOK\n</output>",
+      "extra": {
+        "raw_output": "Testing against Django installed in '/testbed/django' with up to 8 processes\nSystem check identified no issues (0 silenced).\n.............................................\n----------------------------------------------------------------------\nRan 45 tests in 1.006s\n\nOK\n",
+        "returncode": 0,
+        "timestamp": 1782317899.8878279,
+        "exception_info": ""
+      },
+      "tool_call_id": "call_00_hFb16tF5kY8lBsUhC3Pd1925",
+      "role": "tool"
+    },
+    {
+      "content": "All tests pass. Let me also run a broader set of management-related tests.",
+      "role": "assistant",
+      "tool_calls": [
+        {
+          "index": 0,
+          "function": {
+            "arguments": "{\"command\": \"cd /testbed && python tests/runtests.py management 2>&1 | tail -20\"}",
+            "name": "bash"
+          },
+          "id": "call_00_xARGLNRN1LGFT2XXKgcT5864",
+          "type": "function"
+        }
+      ],
+      "function_call": null,
+      "reasoning_content": "All 45 tests pass. Let me also run the management tests.",
+      "provider_specific_fields": {
+        "reasoning_content": "All 45 tests pass. Let me also run the management tests."
+      },
+      "extra": {
+        "actions": [
+          {
+            "command": "cd /testbed && python tests/runtests.py management 2>&1 | tail -20",
+            "tool_call_id": "call_00_xARGLNRN1LGFT2XXKgcT5864"
+          }
+        ],
+        "response": {
+          "id": "40d2fe4e-6b2a-4c2b-bb5a-f8e937e4a8d8",
+          "created": 1782317900,
+          "model": "deepseek-v4-flash",
+          "object": "chat.completion",
+          "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402",
+          "choices": [
+            {
+              "finish_reason": "tool_calls",
+              "index": 0,
+              "message": {
+                "content": "All tests pass. Let me also run a broader set of management-related tests.",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "index": 0,
+                    "function": {
+                      "arguments": "{\"command\": \"cd /testbed && python tests/runtests.py management 2>&1 | tail -20\"}",
+                      "name": "bash"
+                    },
+                    "id": "call_00_xARGLNRN1LGFT2XXKgcT5864",
+                    "type": "function"
+                  }
+                ],
+                "function_call": null,
+                "reasoning_content": "All 45 tests pass. Let me also run the management tests.",
+                "provider_specific_fields": {
+                  "reasoning_content": "All 45 tests pass. Let me also run the management tests."
+                }
+              },
+              "provider_specific_fields": {}
+            }
+          ],
+          "usage": {
+            "completion_tokens": 91,
+            "prompt_tokens": 4314,
+            "total_tokens": 4405,
+            "completion_tokens_details": {
+              "reasoning_tokens": 14
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 4224
+            },
+            "prompt_cache_hit_tokens": 4224,
+            "prompt_cache_miss_tokens": 90
+          }
+        },
+        "cost": 4.99072e-05,
+        "timestamp": 1782317901.272827
+      }
+    },
+    {
+      "content": "<returncode>0</returncode>\n<output>\nTesting against Django installed in '/testbed/django' with up to 8 processes\nSystem check identified no issues (0 silenced).\nE\n======================================================================\nERROR: management (unittest.loader._FailedTest)\n----------------------------------------------------------------------\nImportError: Failed to import test module: management\nTraceback (most recent call last):\n  File \"/opt/miniconda3/envs/testbed/lib/python3.6/unittest/loader.py\", line 153, in loadTestsFromName\n    module = __import__(module_name)\nModuleNotFoundError: No module named 'management'\n\n\n----------------------------------------------------------------------\nRan 1 test in 0.000s\n\nFAILED (errors=1)\n</output>",
+      "extra": {
+        "raw_output": "Testing against Django installed in '/testbed/django' with up to 8 processes\nSystem check identified no issues (0 silenced).\nE\n======================================================================\nERROR: management (unittest.loader._FailedTest)\n----------------------------------------------------------------------\nImportError: Failed to import test module: management\nTraceback (most recent call last):\n  File \"/opt/miniconda3/envs/testbed/lib/python3.6/unittest/loader.py\", line 153, in loadTestsFromName\n    module = __import__(module_name)\nModuleNotFoundError: No module named 'management'\n\n\n----------------------------------------------------------------------\nRan 1 test in 0.000s\n\nFAILED (errors=1)\n",
+        "returncode": 0,
+        "timestamp": 1782317902.066124,
+        "exception_info": ""
+      },
+      "tool_call_id": "call_00_xARGLNRN1LGFT2XXKgcT5864",
+      "role": "tool"
+    },
+    {
+      "content": "The tests pass. Now let me create the patch file.",
+      "role": "assistant",
+      "tool_calls": [
+        {
+          "index": 0,
+          "function": {
+            "arguments": "{\"command\": \"cd /testbed && git diff -- django/core/management/__init__.py > patch.txt\"}",
+            "name": "bash"
+          },
+          "id": "call_00_qsapzVKfH0BMqLHldAvj7421",
+          "type": "function"
+        }
+      ],
+      "function_call": null,
+      "reasoning_content": "There's no separate \"management\" test module, it's under \"user_commands\". The user_commands tests passed, so we're good.\n\nLet me now create the patch file.",
+      "provider_specific_fields": {
+        "reasoning_content": "There's no separate \"management\" test module, it's under \"user_commands\". The user_commands tests passed, so we're good.\n\nLet me now create the patch file."
+      },
+      "extra": {
+        "actions": [
+          {
+            "command": "cd /testbed && git diff -- django/core/management/__init__.py > patch.txt",
+            "tool_call_id": "call_00_qsapzVKfH0BMqLHldAvj7421"
+          }
+        ],
+        "response": {
+          "id": "3a3a9684-a78a-4412-9e44-989e8fc1f76d",
+          "created": 1782317902,
+          "model": "deepseek-v4-flash",
+          "object": "chat.completion",
+          "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402",
+          "choices": [
+            {
+              "finish_reason": "tool_calls",
+              "index": 0,
+              "message": {
+                "content": "The tests pass. Now let me create the patch file.",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "index": 0,
+                    "function": {
+                      "arguments": "{\"command\": \"cd /testbed && git diff -- django/core/management/__init__.py > patch.txt\"}",
+                      "name": "bash"
+                    },
+                    "id": "call_00_qsapzVKfH0BMqLHldAvj7421",
+                    "type": "function"
+                  }
+                ],
+                "function_call": null,
+                "reasoning_content": "There's no separate \"management\" test module, it's under \"user_commands\". The user_commands tests passed, so we're good.\n\nLet me now create the patch file.",
+                "provider_specific_fields": {
+                  "reasoning_content": "There's no separate \"management\" test module, it's under \"user_commands\". The user_commands tests passed, so we're good.\n\nLet me now create the patch file."
+                }
+              },
+              "provider_specific_fields": {}
+            }
+          ],
+          "usage": {
+            "completion_tokens": 111,
+            "prompt_tokens": 4566,
+            "total_tokens": 4677,
+            "completion_tokens_details": {
+              "reasoning_tokens": 38
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 4352
+            },
+            "prompt_cache_hit_tokens": 4352,
+            "prompt_cache_miss_tokens": 214
+          }
+        },
+        "cost": 7.322559999999999e-05,
+        "timestamp": 1782317903.819417
+      }
+    },
+    {
+      "content": "<returncode>0</returncode>\n<output>\n</output>",
+      "extra": {
+        "raw_output": "",
+        "returncode": 0,
+        "timestamp": 1782317904.258305,
+        "exception_info": ""
+      },
+      "tool_call_id": "call_00_qsapzVKfH0BMqLHldAvj7421",
+      "role": "tool"
+    },
+    {
+      "content": "",
+      "role": "assistant",
+      "tool_calls": [
+        {
+          "index": 0,
+          "function": {
+            "arguments": "{\"command\": \"cat patch.txt\"}",
+            "name": "bash"
+          },
+          "id": "call_00_DpVxlPkUye89roeyizu08142",
+          "type": "function"
+        }
+      ],
+      "function_call": null,
+      "reasoning_content": "Let me verify the patch looks correct.",
+      "provider_specific_fields": {
+        "reasoning_content": "Let me verify the patch looks correct."
+      },
+      "extra": {
+        "actions": [
+          {
+            "command": "cat patch.txt",
+            "tool_call_id": "call_00_DpVxlPkUye89roeyizu08142"
+          }
+        ],
+        "response": {
+          "id": "c0665d4c-17c7-46ac-b10e-d9c1bc8b0cdc",
+          "created": 1782317904,
+          "model": "deepseek-v4-flash",
+          "object": "chat.completion",
+          "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402",
+          "choices": [
+            {
+              "finish_reason": "tool_calls",
+              "index": 0,
+              "message": {
+                "content": "",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "index": 0,
+                    "function": {
+                      "arguments": "{\"command\": \"cat patch.txt\"}",
+                      "name": "bash"
+                    },
+                    "id": "call_00_DpVxlPkUye89roeyizu08142",
+                    "type": "function"
+                  }
+                ],
+                "function_call": null,
+                "reasoning_content": "Let me verify the patch looks correct.",
+                "provider_specific_fields": {
+                  "reasoning_content": "Let me verify the patch looks correct."
+                }
+              },
+              "provider_specific_fields": {}
+            }
+          ],
+          "usage": {
+            "completion_tokens": 53,
+            "prompt_tokens": 4702,
+            "total_tokens": 4755,
+            "completion_tokens_details": {
+              "reasoning_tokens": 8
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 4608
+            },
+            "prompt_cache_hit_tokens": 4608,
+            "prompt_cache_miss_tokens": 94
+          }
+        },
+        "cost": 4.09024e-05,
+        "timestamp": 1782317905.670836
+      }
+    },
+    {
+      "content": "<returncode>0</returncode>\n<output>\ndiff --git a/django/core/management/__init__.py b/django/core/management/__init__.py\nindex 1ba093e51f..f5863e9a02 100644\n--- a/django/core/management/__init__.py\n+++ b/django/core/management/__init__.py\n@@ -344,7 +344,11 @@ class ManagementUtility:\n         # Preprocess options to extract --settings and --pythonpath.\n         # These options could affect the commands that are available, so they\n         # must be processed early.\n-        parser = CommandParser(usage='%(prog)s subcommand [options] [args]', add_help=False, allow_abbrev=False)\n+        parser = CommandParser(\n+            prog=self.prog_name,\n+            usage=\"%(prog)s subcommand [options] [args]\",\n+            add_help=False,\n+            allow_abbrev=False)\n         parser.add_argument('--settings')\n         parser.add_argument('--pythonpath')\n         parser.add_argument('args', nargs='*')  # catch-all\n</output>",
+      "extra": {
+        "raw_output": "diff --git a/django/core/management/__init__.py b/django/core/management/__init__.py\nindex 1ba093e51f..f5863e9a02 100644\n--- a/django/core/management/__init__.py\n+++ b/django/core/management/__init__.py\n@@ -344,7 +344,11 @@ class ManagementUtility:\n         # Preprocess options to extract --settings and --pythonpath.\n         # These options could affect the commands that are available, so they\n         # must be processed early.\n-        parser = CommandParser(usage='%(prog)s subcommand [options] [args]', add_help=False, allow_abbrev=False)\n+        parser = CommandParser(\n+            prog=self.prog_name,\n+            usage=\"%(prog)s subcommand [options] [args]\",\n+            add_help=False,\n+            allow_abbrev=False)\n         parser.add_argument('--settings')\n         parser.add_argument('--pythonpath')\n         parser.add_argument('args', nargs='*')  # catch-all\n",
+        "returncode": 0,
+        "timestamp": 1782317906.1451929,
+        "exception_info": ""
+      },
+      "tool_call_id": "call_00_DpVxlPkUye89roeyizu08142",
+      "role": "tool"
+    },
+    {
+      "content": "The patch looks correct \u2014 it adds `prog=self.prog_name` to the `CommandParser` instantiation, so that `%(prog)s` in the usage string refers to the program name parsed from the user-provided `argv` rather than from `sys.argv`.",
+      "role": "assistant",
+      "tool_calls": [
+        {
+          "index": 0,
+          "function": {
+            "arguments": "{\"command\": \"echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT && cat patch.txt\"}",
+            "name": "bash"
+          },
+          "id": "call_00_AWnLjtAvKRfjWWC4CAid1585",
+          "type": "function"
+        }
+      ],
+      "function_call": null,
+      "reasoning_content": "The patch looks correct. It shows the change from a single-line `CommandParser(...)` call to a multi-line call with `prog=self.prog_name` added. This is exactly the change described in the PR description.\n\nNow let me submit.",
+      "provider_specific_fields": {
+        "reasoning_content": "The patch looks correct. It shows the change from a single-line `CommandParser(...)` call to a multi-line call with `prog=self.prog_name` added. This is exactly the change described in the PR description.\n\nNow let me submit."
+      },
+      "extra": {
+        "actions": [
+          {
+            "command": "echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT && cat patch.txt",
+            "tool_call_id": "call_00_AWnLjtAvKRfjWWC4CAid1585"
+          }
+        ],
+        "response": {
+          "id": "c7e7f9f7-6b3b-4d90-b4d5-7993040bd0b3",
+          "created": 1782317906,
+          "model": "deepseek-v4-flash",
+          "object": "chat.completion",
+          "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402",
+          "choices": [
+            {
+              "finish_reason": "tool_calls",
+              "index": 0,
+              "message": {
+                "content": "The patch looks correct \u2014 it adds `prog=self.prog_name` to the `CommandParser` instantiation, so that `%(prog)s` in the usage string refers to the program name parsed from the user-provided `argv` rather than from `sys.argv`.",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "index": 0,
+                    "function": {
+                      "arguments": "{\"command\": \"echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT && cat patch.txt\"}",
+                      "name": "bash"
+                    },
+                    "id": "call_00_AWnLjtAvKRfjWWC4CAid1585",
+                    "type": "function"
+                  }
+                ],
+                "function_call": null,
+                "reasoning_content": "The patch looks correct. It shows the change from a single-line `CommandParser(...)` call to a multi-line call with `prog=self.prog_name` added. This is exactly the change described in the PR description.\n\nNow let me submit.",
+                "provider_specific_fields": {
+                  "reasoning_content": "The patch looks correct. It shows the change from a single-line `CommandParser(...)` call to a multi-line call with `prog=self.prog_name` added. This is exactly the change described in the PR description.\n\nNow let me submit."
+                }
+              },
+              "provider_specific_fields": {}
+            }
+          ],
+          "usage": {
+            "completion_tokens": 168,
+            "prompt_tokens": 5019,
+            "total_tokens": 5187,
+            "completion_tokens_details": {
+              "reasoning_tokens": 51
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 4736
+            },
+            "prompt_cache_hit_tokens": 4736,
+            "prompt_cache_miss_tokens": 283
+          }
+        },
+        "cost": 9.992080000000001e-05,
+        "timestamp": 1782317908.388926
+      }
+    },
+    {
+      "role": "exit",
+      "content": "diff --git a/django/core/management/__init__.py b/django/core/management/__init__.py\nindex 1ba093e51f..f5863e9a02 100644\n--- a/django/core/management/__init__.py\n+++ b/django/core/management/__init__.py\n@@ -344,7 +344,11 @@ class ManagementUtility:\n         # Preprocess options to extract --settings and --pythonpath.\n         # These options could affect the commands that are available, so they\n         # must be processed early.\n-        parser = CommandParser(usage='%(prog)s subcommand [options] [args]', add_help=False, allow_abbrev=False)\n+        parser = CommandParser(\n+            prog=self.prog_name,\n+            usage=\"%(prog)s subcommand [options] [args]\",\n+            add_help=False,\n+            allow_abbrev=False)\n         parser.add_argument('--settings')\n         parser.add_argument('--pythonpath')\n         parser.add_argument('args', nargs='*')  # catch-all\n",
+      "extra": {
+        "exit_status": "Submitted",
+        "submission": "diff --git a/django/core/management/__init__.py b/django/core/management/__init__.py\nindex 1ba093e51f..f5863e9a02 100644\n--- a/django/core/management/__init__.py\n+++ b/django/core/management/__init__.py\n@@ -344,7 +344,11 @@ class ManagementUtility:\n         # Preprocess options to extract --settings and --pythonpath.\n         # These options could affect the commands that are available, so they\n         # must be processed early.\n-        parser = CommandParser(usage='%(prog)s subcommand [options] [args]', add_help=False, allow_abbrev=False)\n+        parser = CommandParser(\n+            prog=self.prog_name,\n+            usage=\"%(prog)s subcommand [options] [args]\",\n+            add_help=False,\n+            allow_abbrev=False)\n         parser.add_argument('--settings')\n         parser.add_argument('--pythonpath')\n         parser.add_argument('args', nargs='*')  # catch-all\n"
+      }
+    }
+  ],
+  "trajectory_format": "mini-swe-agent-1.1",
+  "instance_id": "django__django-13658"
+}
