@@ -5,6 +5,7 @@ using mini-swe-agent as the harness. This doc covers how rtk integrates
 with the harness, the fork in the road for Docker vs local execution,
 and the exact mechanics for a fair A/B comparison.
 
+Last updated: 2026-06-25 (post 100-instance fair eval).
 Verified against:
 - rtk 0.42.4 (installed at /Users/agney/.local/bin/rtk, Mach-O arm64)
 - mini-swe-agent `main` branch (v2.x) as of 2026-06-23
@@ -31,7 +32,7 @@ Two integration surfaces matter for us:
    command string in, gets back either the rtk-rewritten string (exit 3,
    rewritten command on stdout) or nothing (exit 1, passthrough). This
    is what every rtk agent integration (Claude Code, Hermes, Cursor, …)
-   uses under the hood. This is what we'll use.
+   uses under the hood. This is what we use.
 
 ### Exit-code contract (verified)
 
@@ -74,12 +75,7 @@ Things rtk does NOT rewrite (passthrough, exit 1):
 `echo`, `cd`, `pwd`, `npm test` (at least no rule for it here),
 most bare shell builtins and arbitrary scripts.
 
-This is fine and important: rtk only touches commands where it can
-losslessly compress. `cd /path` must stay `cd /path` or the model's
-mental model breaks. See rtk issue #2508 for the failure mode when
-this invariant is violated.
-
-### Platform caveat (Phase 0, 2026-06-23)
+### Platform caveat
 
 The rtk binary at `/Users/agney/.local/bin/rtk` is Mach-O arm64 and
 **cannot run inside a Linux container** (`Exec format error`). For the
@@ -90,7 +86,7 @@ SWE-bench x86_64 eval images under Rosetta emulation on arm64 macs.
 `rtk rewrite` still runs on the host against the Mach-O binary; only
 the *rewritten* command (`rtk git status`) runs inside the container
 against the Linux binary. Both are v0.42.4 — exit-code contract
-verified identical on both (Phase 0 finding 3).
+verified identical on both.
 
 ---
 
@@ -135,14 +131,7 @@ Critical control-flow facts (verified from source):
 - Trajectories are saved to `<instance_id>.traj.json` on every step
   (`finally` block in `DefaultAgent.run`). The full message list is
   there, including `extra.response` with `usage` per model call. That's
-  our ground-truth token source (see §6). Caveat (Phase 0, 2026-06-23):
-  the per-step `finally` fires on Python-level exceptions and limits,
-  but `process_instance`'s per-instance `finally` is guarded by
-  `if agent is not None` — if env startup fails (container pull,
-  startup-command error), no `.traj.json` is written, only a
-  `preds.json` entry with `exit_status=<ExceptionType>`. And no
-  `finally` fires on process-level kill (OOM, SIGKILL). `run.log`
-  (Logging invariant #3) covers those gaps and cannot be skipped.
+  our ground-truth token source (see §6).
 
 ---
 
@@ -153,362 +142,199 @@ SWE-bench Lite is officially scored inside per-instance Docker images
 `swebench.yaml` defaults to `environment_class: docker`, `cwd: /testbed`,
 `interpreter: ["bash", "-c"]`.
 
-That creates two distinct integration paths:
-
-### Path A — Host-side rewrite (recommended for the eval)
+### Path A — Host-side rewrite (the evaluation uses this)
 
 Subclass `DockerEnvironment`, override `execute()` so that the command
 string is passed through `rtk rewrite` *on the host* before being
-forwarded to `docker exec`. The rtk binary lives on the host; the
-container never sees rtk.
-
-Why this works:
-- `docker exec ... bash -c "rtk git status"` requires rtk inside the
-  image. `docker exec ... bash -c "git status"` (with rtk having
-  rewritten "git status" → already-executed compact output) is impossible
-  because the rewrite needs to change *which binary runs*. So we have
-  to run rtk on the host, let it produce the compact stdout, and inject
-  that stdout as the command's output.
-- The clean way: keep rtk on the host, run `rtk <subcmd> <args>` on the
-  host, but with `--cwd`/`chdir` pointed at the *container's* working
-  directory bind-mounted or via `docker cp`. This is fragile.
-
-The actually-clean way: rewrite on the host, then run the rewritten
-command *inside* the container. I.e.
-"`rtk git status`" → rewrite yields "`rtk git status`" → but rtk isn't
-in the container. So we install a tiny rtk binary into the container at
-startup, OR we run rtk on the host against a bind-mount of `/testbed`.
-
-The simplest robust variant of Path A that preserves full SWE-bench
-semantics:
+forwarded to `docker exec`.
 
   1. Launch the stock SWE-bench container as normal.
-  2. `docker cp` a **Linux x86_64 musl rtk binary** (from the v0.42.4
-     GitHub release — NOT the host Mach-O binary, which fails with
-     `Exec format error`) into the container at `/usr/local/bin/rtk`
-     in the subclass's `_start_container` hook. (Phase 0 finding 5:
-     `env_startup_command` can't do this — no `{container_name}` var,
-     `StrictUndefined`, and it runs inside the container where
-     `docker cp` can't reach the host daemon.)
+  2. `docker cp` a **Linux x86_64 musl rtk binary** into the container
+     at `/usr/local/bin/rtk` in the subclass's `_start_container` hook.
   3. Override `DockerEnvironment.execute()` to call
      `rtk rewrite "<command>"` on the host; if exit 3, run the
      rewritten string inside the container; if exit 1, run the original.
 
-This keeps the agent's command history unchanged (it still says
-`git status`), keeps the SWE-bench validation images unmodified at
-checkout time (we only inject a binary at runtime), and lets rtk do its
-job on the real `/testbed` contents.
-
-### Path B — In-container alias / wrapper (simpler, slightly less clean)
-
-Install rtk into the container, then set `BASH_ENV` to a script that
-defines a shell function for every rtk-supported command:
-`git() { rtk git "$@"; }`, `cat() { rtk read "$@"; }`, etc.
-
-This rewrites transparently with zero Python changes. Downside: shell
-functions don't compose with pipes/`&&` the way `rtk rewrite` does, and
-some SWE-bench tasks invoke commands in ways that bypass the function
-table (e.g. `command git`, `/usr/bin/git`, `env git`). Path A is strictly
-more correct.
-
 ### Path C — LocalEnvironment (not for SWE-bench Lite scoring)
 
-For quick iteration on a local repo (the `mini` CLI path), subclass
-`LocalEnvironment` and rewrite before `subprocess.run`. This skips
-Docker entirely and is great for validating the integration mechanics,
-but gives results that are not comparable to published SWE-bench Lite
-numbers. Use as a sanity check, not as the eval.
+For quick iteration on a local repo, subclass `LocalEnvironment` and
+rewrite before `subprocess.run`. Not comparable to published SWE-bench
+Lite numbers. Use as a sanity check, not as the eval.
 
 ---
 
-## 4. The integration: an rtk-aware environment subclass
+## 4. The integration: rtk_env.py
 
-The smallest change to mini-swe-agent that gives us a clean A/B toggle:
+`rtk_env.py` provides `RtkDockerEnvironment` with these features:
 
-```python
-# rtk_env.py — ship as rtk_env (on PYTHONPATH or in site-packages)
-import shutil
-import subprocess
-from minisweagent.environments.docker import (
-    DockerEnvironment, DockerEnvironmentConfig,
-)
+- **Rewrite chokepoint**: `_rewrite()` calls `rtk rewrite <command>` on
+  the host before every bash command. Exit 3 → run rewritten command;
+  anything else → passthrough.
+- **RTK_DISABLED=1 bypass**: If the command is prefixed with
+  `RTK_DISABLED=1`, the prefix is stripped and the original command runs
+  without rewriting (exit code -2 in the rewrite log). Mirrors the real
+  auto-rewrite hook's escape hatch.
+- **exclude_commands**: Configurable list of command patterns that
+  should never be rewritten (exit code -3). Mirrors the real hook's
+  `[hooks] exclude_commands` in config.toml.
+- **Rewrite log**: Every rewrite decision is appended as CSV to
+  `rtk_rewrite.log` — timestamp, run_id, exit_code, original, rewritten.
+- **Linux binary injection**: On container startup, `docker cp` the
+  Linux x86_64 musl rtk binary into the container and verify it runs.
 
-class RtkDockerEnvironmentConfig(DockerEnvironmentConfig):
-    rtk_enabled: bool = True
-    rtk_path: str = shutil.which("rtk") or "rtk"
-    # Path to the Linux x86_64 musl rtk binary to inject into the
-    # container. NOT the host Mach-O binary (Phase 0 finding 3).
-    rtk_linux_binary: str = "vendor/rtk-x86_64-unknown-linux-musl"
+The same `RtkDockerEnvironment` with `rtk_enabled=False` is
+behaviorally identical to `DockerEnvironment`.
 
-class RtkDockerEnvironment(DockerEnvironment):
-    def __init__(self, *, config_class=RtkDockerEnvironmentConfig, **kw):
-        super().__init__(config_class=config_class, **kw)
-        self.instance_id = ""  # tagged per-instance by the harness hook
-
-    def _start_container(self):
-        # Let the base class launch the container and set self.container_id.
-        super()._start_container()
-        if not self.config.rtk_enabled:
-            return
-        # Inject the Linux rtk binary from the host into the running
-        # container. env_startup_command can't do this (Phase 0 finding 5).
-        # Fail fast if cp/chmod/version-check fails — a broken injection
-        # silently turns every rewrite into "command not found" (pitfall #1).
-        cid = self.container_id
-        subprocess.run(["docker", "cp", self.config.rtk_linux_binary,
-                        f"{cid}:/usr/local/bin/rtk"], check=True)
-        subprocess.run(["docker", "exec", cid, "chmod", "+x",
-                        "/usr/local/bin/rtk"], check=True)
-        subprocess.run(["docker", "exec", cid, "/usr/local/bin/rtk",
-                        "--version"], check=True)
-
-    def _rewrite(self, command: str) -> tuple[str, int, str]:
-        if not self.config.rtk_enabled:
-            return command, -1, ""
-        try:
-            r = subprocess.run(
-                [self.config.rtk_path, "rewrite", command],
-                capture_output=True, text=True, timeout=5,
-            )
-        except Exception:
-            return command, -1, ""
-        # exit 3 + stdout = rewritten; anything else = passthrough
-        if r.returncode == 3 and r.stdout and r.stdout.strip():
-            return r.stdout.strip(), r.returncode, r.stdout.strip()
-        return command, r.returncode, ""
-
-    def execute(self, action, cwd="", *, timeout=None):
-        if not self.config.rtk_enabled:
-            return super().execute(action, cwd=cwd, timeout=timeout)
-        original = action.get("command", "")
-        effective, exit_code, rewritten = self._rewrite(original)
-        if effective is not original:
-            action = {**action, "command": effective}
-        # Append one CSV line per rewrite decision (Logging invariant #2):
-        # timestamp, instance_id, exit_code, original, rewritten
-        self._append_rewrite_log(exit_code, original, rewritten)
-        return super().execute(action, cwd=cwd, timeout=timeout)
-```
-
-Register it so mini-swe-agent can find it by name. **Note (Phase 0,
-2026-06-23):** `minisweagent.environments.ENV_CLASSES` does not exist.
-The registry is a private dict `_ENVIRONMENT_MAPPING` resolved by
-`get_environment_class(spec)`, which falls back to treating `spec` as a
-full dotted import path when the name is not in the mapping. The clean
-path: ship `rtk_env.py` as an importable module
-(`rtk_env.RtkDockerEnvironment`) and pass the full dotted
-path on the CLI. No registration, no mutating private internals:
-
-```python
-# rtk_env.py lives on the Python path as rtk_env
-# (e.g. site-packages/minisweagent/rtk_env.py, or a drop-in added via
-# PYTHONPATH). Launch with:
-#   --environment-class rtk_env.RtkDockerEnvironment
-```
-
-Then launch with — note the `env_startup_command` line is **gone**
-(Phase 0 finding 5: `{container_name}` is not a render var and uses
-`StrictUndefined`; and `env.execute` runs inside the container where
-`docker cp` can't reach the host daemon). rtk injection happens in the
-subclass's `_start_container` instead, and uses a **Linux x86_64 musl
-rtk binary**, not the host Mach-O one (Phase 0 finding 3: Mach-O fails
-with `Exec format error` in the container):
+Launch:
 
 ```bash
-# Run from the repo root: `vendor/rtk-x86_64-unknown-linux-musl` is a
-# relative path resolved against the process CWD. Override with an
-# absolute `-c environment.rtk_linux_binary=...` if launching elsewhere.
-mini-extra swebench \
-  --subset lite --split test --slice 0:20 \
-  --model anthropic/claude-sonnet-4-5-20250929 \
+# Control arm (stock Docker, no rtk)
+python -m minisweagent.run.benchmarks.swebench \
+  --subset lite --split test --slice 0:5 \
+  --model deepseek/deepseek-v4-flash \
+  --environment-class docker \
+  -c swebench.yaml \
+  -c agent.step_limit=100 \
+  -c model.cost_tracking=ignore_errors \
+  -o runs/rtk-off
+
+# RTK arm (RtkDockerEnvironment + RTK awareness)
+python -m minisweagent.run.benchmarks.swebench \
+  --subset lite --split test --slice 0:5 \
+  --model deepseek/deepseek-v4-flash \
   --environment-class rtk_env.RtkDockerEnvironment \
   -c swebench.yaml \
+  -c swebench_rtk.yaml \
+  -c model.cost_tracking=ignore_errors \
   -c environment.rtk_rewrite_log_path=runs/rtk-on/rtk_rewrite.log \
   -o runs/rtk-on
 ```
 
-…and the control arm with stock `docker`, same slice and seed:
-
-```bash
-mini-extra swebench \
-  --subset lite --split test --slice 0:20 \
-  --model anthropic/claude-sonnet-4-5-20250929 \
-  --environment-class docker \
-  -c swebench.yaml \
-  -o runs/rtk-off
-```
-
-Notes (updated by Phase 0, 2026-06-23):
-- `env_startup_command` is Jinja2-templated with `**instance` only (the
-  SWE-bench instance dict) and uses `StrictUndefined`. There is no
-  `{container_name}` var — the §4 example using it raises
-  `jinja2.exceptions.UndefinedError`. And `env.execute(startup_command)`
-  runs inside the container, where `docker cp` can't reach the host
-  daemon. The subclass `_start_container` hook is **required**, not the
-  cleaner option. The base class stores the container name on
-  `self.container_id` (not `container_name`).
-- The host rtk binary is Mach-O arm64 and cannot run in a Linux
-  container. Inject a Linux x86_64 musl rtk binary (v0.42.4, from the
-  GitHub release) via `docker cp`. `rtk rewrite` still runs on the host
-  against the Mach-O binary; only the rewritten command runs inside the
-  container against the Linux binary. Both are v0.42.4.
-- The same `RtkDockerEnvironment` with `rtk_enabled=False` is
-  behaviorally identical to `DockerEnvironment`, so a single class with
-  a config flag is enough — you don't even need two environment classes.
+`swebench_rtk.yaml` injects RTK awareness into the system prompt
+(equivalent to the `RTK.md` file from `rtk init -g`). The model is told:
+- What rtk rewrites
+- That `rtk pytest` may produce different output than bare pytest
+- How to bypass with `RTK_DISABLED=1`
 
 ---
 
 ## 5. Pitfalls and invariants
 
 1. **Don't rewrite to a binary that isn't there.** The rewritten command
-   (`rtk git status`) must run *inside the container*. Either install
-   rtk in the container (Path A startup step) or run rtk on the host
-   against a bind-mounted `/testbed`. If `rtk` is missing in the
-   container, `docker exec ... bash -c "rtk git status"` returns
-   `command not found` and the agent sees garbage. Always verify with a
-   smoke test: `echo 'FROM swebench/sweb.eval.x86_64.django_1776_django-11099:latest' | ...`
+   (`rtk git status`) must run *inside the container*. `rtk_env.py`
+   injects the Linux binary at container startup and fails fast if
+   injection fails.
 
 2. **`rtk rewrite` exit codes are 3/1, not 0/1.** The `--help` is wrong.
    Treat non-empty stdout as the rewrite signal, not exit 0.
 
 3. **Don't rewrite shell builtins.** `cd /path`, `export FOO=bar`,
    `source`, `alias` — rtk passes these through (exit 1), and so must
-   we. `rtk rewrite` already does this; our subclass inherits it for
-   free. See rtk issue #2508 for what happens when this breaks.
+   we. `rtk rewrite` already does this.
 
-4. **Command history fidelity.** The model's message history must still
-   say `git status`, not `rtk git status`. Our subclass rewrites only
-   the `command` field passed to `docker exec`; it does NOT mutate the
-   action dict that gets serialized into the trajectory. Verify this by
-   diffing `runs/rtk-on/<id>.traj.json` and `runs/rtk-off/<id>.traj.json`:
-   the `actions[].command` strings should be identical; only the
-   observation `output` strings should differ.
+4. **Tell the model about rtk.** If the model doesn't know rtk exists,
+   unexpected output (e.g., `Pytest: No tests collected`) causes
+   panic-looping. Our original eval made this mistake and got +33.7%
+   cost. The fair eval with `swebench_rtk.yaml` awareness eliminated
+   this failure mode entirely.
 
-5. **The 10,000-char observation truncation is independent.**
-   mini-swe-agent's `observation_template` truncates long outputs to
-   head+tail 5k. rtk reduces output *before* it hits that template, so
-   for many commands the truncation never fires in the rtk-on arm. This
-   is a real effect, not a bug — it's part of the token savings. Don't
-   "fix" it.
+5. **Fairness: identical limits on both arms.** `step_limit: 100`,
+   `model`, temperature, seed — all identical between arms. The only
+   variable is `rtk_enabled`.
 
-6. **Fairness: identical limits on both arms.** `step_limit: 250`,
-   `cost_limit: 3.0`, `wall_time_limit_seconds` if used, token budget,
-   model temperature, seed — all identical between arms. The only
-   variable is `rtk_enabled`. Randomize instance order identically
-   (`--shuffle` uses seed 42; don't re-seed differently per arm).
-
-7. **rtk overhead is ~10ms per call, negligible compared to LLM
+6. **rtk overhead is ~10ms per call, negligible compared to LLM
    latency and the 60s command timeout.** Don't factor it out.
 
-8. **`rtk gain` and `rtk discover` are analytics, not measurement.**
-   They read rtk's own SQLite log of past runs. They will not report
-   anything useful for an A/B eval. Use the trajectory token counts
-   (§6).
+7. **Paired A/B may not isolate RTK's effect.** On short workloads like
+   SWE-bench Lite (median 32 calls), the model takes completely different
+   exploration paths on each run. Across 100 instances, zero had
+   meaningful trajectory overlap (max LCS similarity: 27%). This means
+   you're comparing different trajectories, not the same trajectory
+   with/without compression. See §7 for discussion.
 
 ---
 
-## 6. Measuring tokens
+## 6. Measuring tokens and cost
 
 The authoritative source is the litellm `usage` object on every model
 response. mini-swe-agent stores the full response in each assistant
-message's `extra.response`. So per-trajectory token totals are:
+message's `extra.response`. `runs/measure_paired.py` computes:
 
-```python
-import json
-from pathlib import Path
-
-def trajectory_tokens(traj_path: Path) -> dict:
-    data = json.loads(traj_path.read_text())
-    prompt_tokens = 0
-    completion_tokens = 0
-    n_calls = 0
-    for msg in data["messages"]:
-        resp = msg.get("extra", {}).get("response")
-        if not resp or "usage" not in resp:
-            continue
-        u = resp["usage"]
-        prompt_tokens += u.get("prompt_tokens", 0)
-        completion_tokens += u.get("completion_tokens", 0)
-        n_calls += 1
-    return {
-        "instance_id": data["info"]["instance_id"],
-        "exit_status": data.get("exit_status"),
-        "n_calls": n_calls,
-        "prompt_tokens": prompt_tokens,
-        "completion_tokens": completion_tokens,
-        "total_tokens": prompt_tokens + completion_tokens,
-    }
-```
-
-Run that over every `.traj.json` in both `runs/rtk-on/` and
-`runs/rtk-off/`, keyed by `instance_id`. The comparison is:
-
-    tokens(on, instance)  vs  tokens(off, instance)   for the same instance
-
-Report per-instance deltas and aggregate (median + mean, since the
-distribution is heavy-tailed). The resolution-rate number
-(`exit_status == "Submitted"` and ultimately `resolved` from sb-cli)
-must be reported alongside — token savings that tank resolution is a
-regression, not a win.
-
-For the resolved/not-resolved verdict, submit both arms' `preds.json`
-to sb-cli:
+- Per-instance: prompt_tokens, completion_tokens, total_tokens, n_calls
+- Cost: from a built-in pricing table ($0.14/1M input, $0.28/1M output
+  for DeepSeek V4 Flash direct API) or custom `--pricing` JSON.
+- Aggregates: total, median, mean for each metric.
 
 ```bash
-sb-cli submit swe-bench_lite test \
-  --predictions_path runs/rtk-on/preds.json --run_id rtk-on-$(date +%s)
-sb-cli submit swe-bench_lite test \
-  --predictions_path runs/rtk-off/preds.json --run_id rtk-off-$(date +%s)
+python runs/measure_paired.py --off runs/fair/rtk-off --on runs/fair/rtk-on
 ```
 
-Final table per arm:
-
-| metric                  | rtk-off | rtk-on | delta |
-|-------------------------|---------|--------|-------|
-| resolved                |    ?    |   ?    |       |
-| submitted               |    ?    |   ?    |       |
-| median prompt tokens    |    ?    |   ?    |       |
-| median completion tokens|    ?    |   ?    |       |
-| median total tokens     |    ?    |   ?    |       |
-| median steps            |    ?    |   ?    |       |
+The rewrite log (`rtk_rewrite.log`) provides per-command detail: which
+commands were rewritten, bypassed, or passed through.
 
 ---
 
-## 7. Dataset scope
+## 7. Results and methodology (post 100-instance eval)
 
-- **Dataset:** SWE-bench Lite (`princeton-nlp/SWE-bench_Lite`, split
-  `test`, 300 instances). Public leaderboard tops out ~62.7% (Claude
-  Opus 4.6 Thinking, mid-2026). That's "saturated enough" for our
-  purposes — resolution rate is high enough that token cost, not
-  correctness, is the interesting axis, and the dataset is
-  well-characterized so variance is understood.
+### What we ran
 
-- **Run size: 20 instances.** Full 300-instance sweep isn't needed;
-  20 paired observations is enough to see the rtk token delta clearly
-  (rtk's claimed effect is 60-90% per command, far larger than
-  per-instance variance). Use `--slice 0:20` on both arms with the same
-  seed so the two arms see the same 20 instances.
+100 paired SWE-bench Lite instances across 20 slices (0:100), DeepSeek
+V4 Flash, step limit 100. Model is aware of rtk via system prompt,
+has `RTK_DISABLED=1` bypass available. No commands preemptively excluded.
 
-  Variance note: with n=20 paired samples, the standard error of the
-  mean token delta is σ/√20 ≈ σ/4.5. If the true mean savings is ~50%
-  and σ is ~15% of the off-arm mean (typical for SWE-bench token
-  distributions), the 95% CI on the mean is roughly ±13% — wide enough
-  to confirm "rtk saves a lot" but not to nail the exact percentage.
-  That's an acceptable trade for not spending 300×2×$3 of model budget.
-  If a tighter number is wanted later, run the same 20 again with a
-  different slice and pool.
+### Results
 
----
+| metric | rtk-off | rtk-on | delta |
+|---|---:|---:|---:|
+| Total cost | $11.73 | $12.25 | +$0.52 (+4.5%) |
+| Total calls | 3,995 | 4,063 | +68 (+1.7%) |
+| Median cost/instance | $0.057 | $0.059 | +$0.003 (+3.9%) |
+| Median calls/instance | 32 | 32 | 0 |
 
-## 8. TL;DR
+43.9% win rate for rtk-on — essentially a coin flip.
+**RTK_DISABLED=1 uses: 0** across all 100 instances.
 
-- rtk integrates with mini-swe-agent at the `Environment.execute()`
-  chokepoint via `rtk rewrite`, not via prompt changes.
-- Write a `RtkDockerEnvironment` subclass that rewrites the command
-  string before delegating to the stock `DockerEnvironment.execute()`.
-  Install rtk into the container at startup so the rewritten commands
-  can actually run there.
-- Run two arms: `rtk_enabled=True` and `rtk_enabled=False` (or stock
-  `docker` env), same model, same limits, same seed, same instance set.
-- Measure tokens from `extra.response.usage` in the trajectories;
-  measure resolution from sb-cli. Report both.
+### What we learned
+
+**Compression works.** 1,681 successful rewrites, 3.0% tool output
+reduction (4.92M → 4.77M chars). The rewrite mechanism is functioning
+correctly.
+
+**No systematic failure.** Unlike our original eval (which hid rtk from
+the model and got +33.7% cost from pytest panic-looping), the fair eval
+shows no rtk-induced debugging loops. System prompt awareness alone
+prevented the panic — the model accepted `rtk pytest`'s compact
+output as normal.
+
+**Net effect is unmeasurable.** The +4.5% cost delta is indistinguishable
+from model path variance. Across all 100 instances, zero had meaningful
+trajectory overlap between arms (max LCS similarity: 27%). The model
+takes a different path every run — you're comparing apples to oranges,
+not the same trajectory with/without compression.
+
+### Why paired A/B fails for this workload
+
+RTK evaluation has three effects tangled together:
+1. **Compression** (measurable) — rtk shortens command output
+2. **Model path variance** (unmeasurable without repeats) — the model
+   picks different routes on different runs
+3. **Behavioral drift** (unmeasurable without counterfactual) — rtk's
+   output might nudge the model to a different next step
+
+On SWE-bench Lite (median 32 calls, short output), the compression
+effect is ~3% of tool output — too small relative to model path
+variance to produce a clean signal. RTK's value proposition (60-90%
+per-command compression) requires longer workloads with verbose tool
+output to compound into measurable savings.
+
+### What would be a better eval
+
+- **Longer sessions**: 200+ tool calls, large repos, verbose test output,
+  broad grep results. Compression compounds across many commands.
+- **Within-trajectory measurement**: Instead of comparing two arms,
+  measure per-command compression ratios on the rtk-on arm alone.
+  Aggregate "tokens saved on identical work" directly from rewrite
+  logs + trajectories — no model variance confound.
+- **Wider workloads**: SWE-bench Lite is a specific, narrow task type.
+  Real-world Claude Code sessions have much more diverse and verbose
+  tool output.
